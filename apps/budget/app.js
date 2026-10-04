@@ -178,6 +178,7 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
       }))));
       var form = el('form', { id: 'map-form', novalidate: true },
         el('p', { class: 'small' }, 'We could not tell which columns are which in ', el('strong', null, name), '. Pick them below. Here are the first rows:'),
+        MP.explain(null, 'Every statement has a date, a description of who was paid, and the amount. Some banks put money out and money in in two separate columns; if yours does, choose "paid out" and "paid in" instead of one amount column.'),
         preview,
         el('div', { class: 'grid-2', style: { marginTop: '12px' } },
           MP.field('Date', dateSel), MP.field('Description', descSel),
@@ -234,24 +235,49 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
     return { months: ms.length, inn: inn / n, out: out / n, left: (inn - out) / n, cats: cats };
   }
 
+  /* The guide asked "is there money left at the end of the month?" */
+  function shortMonths() { var a = (MP.prefs().answers || {}); return a.leftover === 'no'; }
+
+  /* Categories that are usually easiest to trim. */
+  var CUTTABLE = ['Eating out & takeaway', 'Shopping', 'Entertainment', 'Subscriptions', 'Cash', 'Other'];
+
+  function leftoverIntro() {
+    return el('section', { class: 'callout warning', id: 'leftover-intro', 'aria-labelledby': 'h-leftover' },
+      el('h2', { id: 'h-leftover', style: { fontSize: '1.05rem', marginBottom: '4px' } }, 'Running short most months? Small changes add up.'),
+      el('p', { class: 'small' }, 'You told us money often runs out before the end of the month. You do not need to change everything. Finding just 2 or 3 savings, such as a subscription you no longer use, one less takeaway a week or a cheaper phone deal, can free £50 to £100 a month.'),
+      el('p', { class: 'small' }, state.tx.length ? 'Look at "What this tells you" below: it starts with the places that are usually easiest to cut.' : 'Add your statements below and we will point out the places that are usually easiest to cut.'));
+  }
+
+  function debtHelp(avg) {
+    return el('section', { class: 'card', id: 'budget-advice', 'aria-labelledby': 'h-debt' },
+      el('h2', { id: 'h-debt' }, 'More is going out than coming in'),
+      el('p', { class: 'small' }, 'On average you spend ', el('strong', null, MP.money(-avg.left) + ' a month'), ' more than comes in. That gap is usually covered by an overdraft, a credit card or savings, and it can grow quickly. If you are struggling with bills or borrowing, talking to someone early really helps. Missed payments can also harm your ',
+        MP.term('credit-score', 'credit score'), '.'),
+      MP.adviceCard('debt'));
+  }
+
   /* ---------- render ---------- */
   function render() {
     main.innerHTML = '';
     main.appendChild(el('div', { style: { margin: '6px 0 14px' } },
       el('h1', { style: { margin: 0 } }, 'Budget from statements'),
       el('p', { class: 'muted', style: { margin: 0 } }, 'Read your bank statement files on this device and see where your money goes each month.')));
-    var has = state.tx.length > 0;
+    var has = state.tx.length > 0, avg = has ? averages() : null, overspending = !!(avg && avg.left < -0.5);
     var wrap = el('div', { class: 'stack' });
+    if (shortMonths()) wrap.appendChild(leftoverIntro());
     wrap.appendChild(importCard(has));
     if (has) {
       var m = currentMonth(), list = forMonth(m);
       wrap.appendChild(controls(m));
       wrap.appendChild(totals(m, list));
-      wrap.appendChild(el('div', { class: 'grid-2' }, donutCard(m, list), trendCard()));
-      wrap.appendChild(el('div', { class: 'grid-2' }, insightsCard(m, list), limitsCard(m, list)));
+      if (overspending) wrap.appendChild(debtHelp(avg));
+      // One grid: Detailed shows donut + month by month, then insights + limits. Simple hides the
+      // detail-only cards, so the donut and insights sit side by side.
+      wrap.appendChild(el('div', { class: 'grid-2 bd-cards' }, donutCard(m, list), trendCard(), insightsCard(m, list), limitsCard(m, list)));
       wrap.appendChild(recurringCard());
       wrap.appendChild(txCard(m, list));
     }
+    if (!overspending) wrap.appendChild(el('div', { id: 'budget-advice' }, MP.adviceCard('general')));
     wrap.appendChild(howTo());
     main.appendChild(wrap);
     showMessages();
@@ -273,6 +299,7 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
     var nFiles = Object.keys(files).length;
     return el('section', { class: 'card', 'aria-labelledby': 'h-import', id: 'import-card' },
       el('h2', { id: 'h-import' }, has ? 'Add more statements' : 'Add your bank statements'),
+      MP.explain(null, 'A statement file is the list of payments in and out of your account, saved from online banking. CSV is a simple spreadsheet format that most UK banks offer. To get one, sign in to online banking on a computer, open your current account and look for "Download", "Export" or "Statements", then choose CSV and the last 3 months.'),
       el('p', { class: 'callout success bd-privacy', id: 'privacy-note' }, el('strong', null, '🔒 Your files stay on this device. '),
         'They are read by your browser and never uploaded to us or anyone else. Transactions are saved encrypted in your account on this device.'),
       zone,
@@ -298,7 +325,7 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
     return el('div', { class: 'row bd-controls no-print' },
       el('div', { class: 'bd-month' }, el('label', { for: 'month', class: 'bd-month-label' }, 'Month'), sel),
       el('span', { class: 'mp-spacer' }),
-      el('button', { class: 'btn btn-sm', type: 'button', id: 'export-btn', onclick: exportCSV }, '⬇ Export CSV'),
+      el('button', { class: 'btn btn-sm detail-only', type: 'button', id: 'export-btn', onclick: exportCSV }, '⬇ Export CSV'),
       el('button', { class: 'btn btn-sm btn-danger', type: 'button', id: 'clear-btn', onclick: clearAll }, 'Clear all data'));
   }
 
@@ -338,7 +365,7 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
       return el('tr', null, el('td', null, monthLabel(k, true)), el('td', { class: 'num' }, MP.money(ins[j])), el('td', { class: 'num' }, MP.money(outs[j])),
         el('td', { class: 'num ' + (left >= 0 ? 'pos' : 'neg') }, MP.money(left)));
     });
-    return el('section', { class: 'card', 'aria-labelledby': 'h-trend' },
+    return el('section', { class: 'card detail-only', 'aria-labelledby': 'h-trend', id: 'trend' },
       el('h2', { id: 'h-trend' }, 'Month by month'), body,
       el('div', { class: 'scroll-x', style: { marginTop: '10px' } }, el('table', { class: 'table small', id: 'month-table' },
         el('thead', null, el('tr', null, el('th', null, 'Month'), el('th', { class: 'num' }, 'In'), el('th', { class: 'num' }, 'Out'), el('th', { class: 'num' }, 'Left over'))),
@@ -386,6 +413,15 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
     if (cash > 30) items.push(el('li', null, 'You take out about ' + MP.money(cash) + ' a month in cash. Cash spending is hard to track, so jot down what it goes on.'));
     var other = sums['Other'] || 0;
     if (other > spend * 0.15 && other > 50) items.push(el('li', null, MP.money(other) + ' is in "Other". Sorting these into categories below makes this picture clearer.'));
+    if (shortMonths()) {
+      var cuts = CUTTABLE.filter(function (c) { return avg.cats[c] >= 1; }).sort(function (a, b) { return avg.cats[b] - avg.cats[a]; }).slice(0, 3);
+      if (cuts.length) {
+        var cutTotal = cuts.reduce(function (a, c) { return a + avg.cats[c] * 0.2; }, 0);
+        items.unshift(el('li', { class: 'bd-cut', id: 'cut-tips' }, el('strong', null, 'Easiest places to look for savings: '),
+          cuts.map(function (c) { return CAT[c].icon + ' ' + c + ' (' + MP.money(avg.cats[c]) + ' a month)'; }).join(', ') + '. Trimming each by a fifth would free about ',
+          el('strong', { id: 'cut-total' }, MP.money(cutTotal) + ' a month'), '.'));
+      }
+    }
     var left = avg.left, dreams = null;
     if (avg.months) items.push(el('li', null, 'On average you have ', el('strong', { id: 'avg-left', class: left >= 0 ? 'pos' : 'neg' }, MP.money(Math.abs(left)) + (left >= 0 ? ' left over' : ' overspent')), ' a month (' + avg.months + (avg.months === 1 ? ' month' : ' months') + ' of statements).' +
       (left < 0 ? ' Look at the biggest categories first, and check for payments you no longer need.' : '')));
@@ -405,7 +441,9 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
     }
     return el('section', { class: 'card', 'aria-labelledby': 'h-insights', id: 'insights' },
       el('h2', { id: 'h-insights' }, 'What this tells you'),
-      el('ul', { class: 'bd-insights' }, items), dreams);
+      el('ul', { class: 'bd-insights' }, items),
+      subs.length ? MP.explain(null, 'Subscriptions are payments that repeat until you cancel them, such as streaming, apps, the gym or a phone plan. Free trials often turn into paid ones without a reminder, so they are worth checking.') : null,
+      dreams);
   }
 
   function limitsCard(m, list) {
@@ -434,7 +472,7 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
           el('span', { class: 'bd-limit-spent' }, MP.money(spent)), chip),
         el('div', { class: 'bd-limit-row' }, bar || el('div', { class: 'progress bd-bar bd-bar-none', 'aria-hidden': 'true' }), inp.wrap));
     });
-    return el('section', { class: 'card', 'aria-labelledby': 'h-limits', id: 'limits' },
+    return el('section', { class: 'card detail-only', 'aria-labelledby': 'h-limits', id: 'limits' },
       el('h2', { id: 'h-limits' }, 'Monthly limits'),
       el('p', { class: 'small muted' }, (m === 'all' ? 'Average monthly spending' : 'Spending in ' + monthLabel(m)) + ' against a limit you choose for each category.'),
       rows.length ? rows : el('p', { class: 'muted' }, 'No spending to compare yet.'),
@@ -461,9 +499,11 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
             el('td', { class: 'num' }, MP.money(r.amount, true)), el('td', { class: 'num' }, MP.money(r.yearly)));
         })),
         el('tfoot', null, el('tr', null, el('th', null, 'Total of regular payments'), el('th', { class: 'bd-rec-catcol' }), el('th'), el('th', { class: 'num' }, MP.money(year)))))),
-        el('p', { class: 'small muted', style: { marginTop: '8px' } }, 'Payments to the same place for a similar amount about once a month. Cancelling one you do not use saves its yearly cost.')];
+        el('p', { class: 'small muted', style: { marginTop: '8px' } }, 'Payments to the same place for a similar amount about once a month, often by ', MP.term('direct-debit', 'Direct Debit'), ' or standing order. Cancelling one you do not use saves its yearly cost.')];
     }
-    return el('section', { class: 'card', 'aria-labelledby': 'h-recurring', id: 'recurring' }, el('h2', { id: 'h-recurring' }, 'Regular payments and subscriptions'), body);
+    return el('section', { class: 'card', 'aria-labelledby': 'h-recurring', id: 'recurring' }, el('h2', { id: 'h-recurring' }, 'Regular payments and subscriptions'),
+      MP.explain(null, 'A Direct Debit lets a company take what you owe from your account, and the amount can change (energy bills, council tax). A standing order is a fixed amount you choose to send, such as rent or money to savings. You can cancel either in your banking app, but tell the company first so you do not miss a bill.'),
+      body);
   }
 
   function txCard(m, list) {
@@ -476,13 +516,13 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
     fillTable(tableBox, list);
     return el('section', { class: 'card', 'aria-labelledby': 'h-tx', id: 'tx-card' },
       el('h2', { id: 'h-tx' }, 'Transactions' + (m === 'all' ? '' : ' in ' + monthLabel(m))),
-      el('p', { class: 'small muted' }, 'Wrong category? Change it here. You can then choose to always use it for that place.'),
-      el('div', { class: 'bd-filters no-print' }, el('div', { class: 'field' }, el('label', { for: 'tx-search' }, 'Search'), search), el('div', { class: 'field' }, el('label', { for: 'tx-cat' }, 'Category'), catSel)),
+      el('p', { class: 'small muted' }, 'Wrong category? Change it here.', el('span', { class: 'detail-only' }, ' You can then choose to always use it for that place.')),
+      el('div', { class: 'bd-filters no-print' }, el('div', { class: 'field' }, el('label', { for: 'tx-search' }, 'Search'), search), el('div', { class: 'field detail-only' }, el('label', { for: 'tx-cat' }, 'Category'), catSel)),
       ruleBar(), tableBox);
   }
 
   function ruleBar() {
-    var c = ui.lastChange, box = el('div', { id: 'rule-bar', 'aria-live': 'polite' });
+    var c = ui.lastChange, box = el('div', { id: 'rule-bar', class: 'detail-only', 'aria-live': 'polite' });
     if (!c) return box;
     if (c.saved) box.appendChild(el('p', { class: 'callout success small' }, 'Saved. ' + c.merchant + ' will always go in ' + c.cat + ' (' + c.count + ' transaction' + (c.count === 1 ? '' : 's') + ' updated).'));
     else box.appendChild(el('div', { class: 'callout small bd-rule' },
@@ -559,6 +599,7 @@ MP.page({ id: 'budget', title: 'Budget from statements' }).then(function () {
   }
 
   MP.onTheme(render);
+  MP.onPrefs(render);
   ui.msgs = [];
   render();
 });

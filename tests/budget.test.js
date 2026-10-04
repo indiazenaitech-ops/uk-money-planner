@@ -8,6 +8,13 @@ module.exports = async ({ page, expect, ROOT }) => {
     await chooser.setFiles(fixture(f));
   }
 
+  const visible = (sel) => page.locator(sel).first().isVisible();
+
+  // new accounts start in Simple mode as beginners: the statement explanation shows, general advice at the bottom
+  expect(await page.evaluate(() => document.documentElement.dataset.detail) === 'simple', 'new accounts start in Simple mode');
+  expect(await visible('#import-card .explain'), 'beginner sees what a statement CSV is');
+  expect(/MoneyHelper|adviser/i.test(await page.innerText('#budget-advice')), 'general advice card at the bottom');
+
   // privacy promise is shown by the import area
   expect(/never uploaded/i.test(await page.innerText('#privacy-note')), 'privacy note says files are never uploaded');
 
@@ -20,6 +27,14 @@ module.exports = async ({ page, expect, ROOT }) => {
   expect(Math.abs(inn - 2520) < 0.001, 'money in = £2,520.00, got ' + inn);
   expect(Math.abs(out - 1065.99) < 0.001, 'money out = £1,065.99, got ' + out);
   expect(Math.abs((await money('#left-over')) - 1454.01) < 0.001, 'left over = £1,454.01');
+
+  // Simple: totals, donut and transactions show; limits, month by month, export and the category filter are hidden
+  expect(await visible('#h-donut') && await visible('#tx-search') && await visible('#insights'), 'Simple shows donut, insights and search');
+  expect(!(await visible('#limits')) && !(await visible('#trend')) && !(await visible('#export-btn')) && !(await visible('#tx-cat')), 'detail-only panels hidden in Simple');
+  await page.click('#mp-detail-detailed');
+  await page.waitForSelector('#limits', { state: 'visible' });
+  expect(await visible('#limits') && await visible('#trend') && await visible('#export-btn') && await visible('#tx-cat'), 'detail-only panels visible after switching to Detailed');
+  expect(Math.abs((await money('#total-in')) - 2520) < 0.001, 'totals unchanged after switching');
 
   // known merchants are categorised
   const tesco = page.locator('#tx-table tbody tr', { hasText: 'TESCO' }).first();
@@ -66,4 +81,23 @@ module.exports = async ({ page, expect, ROOT }) => {
   const spare = await page.evaluate(() => MP.get('tools.dreams', {}).spare);
   const btnAmount = Number((await page.innerText('#to-dreams')).replace(/[^0-9]/g, ''));
   expect(spare > 0 && spare === btnAmount, 'Dreams spare set to ' + btnAmount + ', got ' + spare);
+  expect(await visible('#recurring .explain'), 'Direct Debit vs standing order explained for beginners');
+
+  // a guide answer of "I often run short" adds a gentle intro and points to cuttable categories
+  await page.evaluate(() => MP.setPrefs({ answers: Object.assign({}, MP.prefs().answers, { leftover: 'no' }) }));
+  await page.waitForSelector('#leftover-intro');
+  expect(/2 or 3 savings/.test(await page.innerText('#leftover-intro')), 'running-short intro shown');
+  expect(/Eating out/.test(await page.innerText('#cut-tips')) && /a month/.test(await page.innerText('#cut-total')), 'insights lead with cuttable categories');
+
+  // confident customers do not see the 💡 explanations
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'confident' }));
+  expect(!(await visible('#import-card .explain')) && !(await visible('#recurring .explain')), 'explanations hidden for confident customers');
+
+  // spending more than comes in: free debt advice replaces the general advice card
+  await importFile('overspend.csv');
+  await page.waitForFunction(() => document.querySelectorAll('#month option').length === 3);
+  expect((await money('#avg-left')) > 240 && /overspent/.test(await page.innerText('#avg-left')), 'average overspend found');
+  expect(/Free debt help/.test(await page.innerText('#budget-advice')) && /StepChange/.test(await page.innerText('#budget-advice')), 'debt advice card shown when overspending');
+  expect((await page.locator('#budget-advice').count()) === 1, 'only one advice card');
+  await page.evaluate(() => MP.setPrefs({ knowledge: '', answers: {} }));
 };

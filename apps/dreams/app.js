@@ -30,6 +30,8 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
 
   var settings = MP.get('tools.dreams', { spare: 400, inflate: true, filter: 'all' });
 
+  /* Simple view always allows for rising prices; only Detailed lets the customer turn it off. */
+  function inflating() { return settings.inflate || !MP.isDetailed(); }
   function yearsUntil(date) { var d = new Date(date); return isNaN(d) ? 0 : Math.max(0, (d - new Date()) / (365.25 * 864e5)); }
   function addYears(y) { var d = new Date(); d.setMonth(d.getMonth() + Math.round(y * 12)); return MP.isoDate(d); }
 
@@ -38,7 +40,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
     var years = yearsUntil(g.date), home = HOMES[g.home] || HOMES.other;
     var rate = g.rate != null && g.rate !== '' ? +g.rate : home.rate;
     var target = +g.target || 0;
-    var future = settings.inflate ? target * Math.pow(1 + UK.R.inflation, years) : target;
+    var future = inflating() ? target * Math.pow(1 + UK.R.inflation, years) : target;
     var saved = +g.saved || 0;
     var monthly;
     if (g.home === 'lisa') {
@@ -66,6 +68,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
     right.appendChild(goalsList(goals));
     if (goals.length) right.appendChild(timeline(goals));
     right.appendChild(howTo());
+    right.appendChild(MP.adviceCard('general'));
     split.appendChild(right);
     main.appendChild(split);
     saveSummary(goals);
@@ -87,7 +90,9 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
     var box = el('section', { class: 'card', 'aria-labelledby': 'h-afford' },
       el('h2', { id: 'h-afford' }, 'Can I afford it all?'),
       MP.field('How much can you put aside each month?', spare.wrap, 'After bills and everyday spending. The Budget tool can help you find this.'),
-      el('label', { class: 'check' }, inflate, 'Allow for rising prices (' + MP.pct(UK.R.inflation) + ' a year)'),
+      el('label', { class: 'check detail-only' }, inflate, 'Allow for rising prices (' + MP.pct(UK.R.inflation) + ' a year)'),
+      inflating() ? el('p', { class: 'small muted simple-only', style: { margin: 0 } }, 'Targets include rising prices of ' + MP.pct(UK.R.inflation) + ' a year.') : null,
+      MP.explain(null, 'Prices usually rise each year (this is called inflation). A holiday that costs £5,000 today might cost about £5,650 in 5 years, so we save towards the future price.'),
       el('hr'),
       el('div', { class: 'stat' }, el('span', { class: 'label' }, 'All your dreams need each month'), el('span', { class: 'value', id: 'total-monthly' }, MP.money(need))),
       el('div', { 'aria-live': 'polite', id: 'afford-result', style: { marginTop: '12px' } },
@@ -108,6 +113,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
     if (!goals.length) {
       sec.appendChild(el('div', { class: 'card' }, el('h2', null, 'Start with an idea'),
         el('p', { class: 'muted' }, 'Pick one to get going. You can change the amount and date.'),
+        MP.explain(null, 'Not sure where to start? Most people begin with an emergency fund: 3 to 6 months of essential bills in an easy-access account, for surprises such as a broken boiler or losing your job.'),
         el('div', { class: 'template-grid' }, TEMPLATES.map(function (t) {
           return el('button', { class: 'btn template', type: 'button', dataset: { template: t.key }, onclick: function () { editGoal(null, t); } }, el('span', { 'aria-hidden': 'true' }, t.icon), t.name);
         }))));
@@ -121,11 +127,12 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
           (+g.monthly || 0) > 0 ? el('span', { class: 'chip warning' }, 'Behind') : el('span', { class: 'chip' }, PRIORITY[g.priority || 2]);
       list.appendChild(el('article', { class: 'card goal', dataset: { id: g.id } },
         el('div', { class: 'goal-head' }, el('span', { class: 'goal-ico', 'aria-hidden': 'true' }, g.icon || '🎯'),
-          el('div', { style: { minWidth: 0 } }, el('h3', null, g.name), el('div', { class: 'small muted' }, 'by ' + MP.fmtDate(g.date) + ' · ' + (HOMES[g.home] || HOMES.other).label)), status),
+          el('div', { style: { minWidth: 0 } }, el('h3', null, g.name), el('div', { class: 'small muted' }, 'by ' + MP.fmtDate(g.date), el('span', { class: 'detail-only' }, ' · ' + (HOMES[g.home] || HOMES.other).label)),
+            /^guide-/.test(g.source || '') ? el('div', { class: 'tiny guide-note' }, '✨ Added by your guided setup') : null), status),
         el('div', { class: 'progress', role: 'progressbar', 'aria-label': g.name + ' progress', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(p.progress * 100) }, el('span', { style: { width: p.progress * 100 + '%' } })),
         el('div', { class: 'goal-nums' },
           el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Saved'), el('span', { class: 'value goal-saved' }, MP.money(g.saved || 0))),
-          el('div', { class: 'stat' }, el('span', { class: 'label' }, settings.inflate && p.years > 0.5 ? 'Target (with rising prices)' : 'Target'), el('span', { class: 'value' }, MP.money(p.future))),
+          el('div', { class: 'stat' }, el('span', { class: 'label' }, inflating() && p.years > 0.5 ? 'Target (with rising prices)' : 'Target'), el('span', { class: 'value' }, MP.money(p.future))),
           el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Put aside monthly'), el('span', { class: 'value goal-monthly' }, MP.money(p.monthly)))),
         g.note ? el('p', { class: 'small muted', style: { margin: '10px 0 0' } }, g.note) : null,
         el('div', { class: 'row', style: { marginTop: '12px' } },
@@ -142,7 +149,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
 
   function timeline(goals) {
     var sorted = goals.slice().sort(function (a, b) { return new Date(a.date) - new Date(b.date); });
-    return el('section', { class: 'card', 'aria-labelledby': 'h-time' }, el('h2', { id: 'h-time' }, 'Your timeline'),
+    return el('section', { class: 'card detail-only', 'aria-labelledby': 'h-time' }, el('h2', { id: 'h-time' }, 'Your timeline'),
       el('ol', { class: 'timeline' }, sorted.map(function (g) {
         var p = plan(g);
         return el('li', null, el('span', { class: 'when' }, new Date(g.date).getFullYear() || '—'),
@@ -156,7 +163,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
         el('li', null, 'Add each dream with a price in today\'s money and a date. We add rising prices for you, so the monthly figure stays realistic.'),
         el('li', null, 'Set a priority. "Must have" dreams, like an emergency fund, are funded first when money is tight.'),
         el('li', null, 'Put money for goals under 5 years away in cash savings. Money for longer goals may grow more if invested, but can fall in value too.'),
-        el('li', null, 'Use your tax-free ISA allowance (' + MP.money(UK.R.isa.annual) + ' a year). Savings at UK banks are protected by the FSCS up to £120,000 per person, per banking licence.'),
+        el('li', null, 'Use your tax-free ', MP.term('isa', 'ISA'), ' allowance (' + MP.money(UK.R.isa.annual) + ' a year). Savings at UK banks are protected by the ', MP.term('fscs', 'FSCS'), ' up to £120,000 per person, per banking licence.'),
         el('li', null, 'Press "Add money" every time you save towards a dream. Seeing the bar fill up keeps you going.'),
         el('li', null, 'Try this with your family: each person names one dream, then agree together on the order to fund them.')));
   }
@@ -185,8 +192,11 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
       el('div', { class: 'grid-2' },
         MP.field('Cost in today\'s money', target.wrap), MP.field('Saved so far', saved.wrap),
         MP.field('When do you want it?', date), MP.field('Priority', pri),
-        MP.field('Where will you save?', home), MP.field('Expected yearly growth (%)', rate, 'Leave blank for our assumption')),
-      MP.field('You plan to put aside each month (optional)', monthly.wrap, 'We compare this with what you need, to show if you are on track.'),
+        detailOnly(MP.field('Where will you save?', home)), detailOnly(MP.field('Expected yearly growth (%)', rate, 'Leave blank for our assumption'))),
+      el('div', { class: 'detail-only' },
+        MP.explain(null, 'Money can grow while you save. Interest is added to your savings, then next time you earn interest on that interest too (compound interest). Cash savings grow slowly but safely; investments may grow more over 5+ years, but can fall.'),
+        MP.field('You plan to put aside each month (optional)', monthly.wrap, 'We compare this with what you need, to show if you are on track.')),
+      el('div', { class: 'simple-only' }, MP.explain(null, '"Must have" dreams are funded first when money is tight. Switch to Detailed view to choose where you will save and the growth rate.')),
       err, el('button', { class: 'btn btn-primary', type: 'submit', id: 'g-save' }, isNew ? 'Add dream' : 'Save changes'));
     var close = MP.modal(form, { title: isNew ? 'New dream' : 'Edit dream' });
     form.addEventListener('submit', function (e) {
@@ -228,6 +238,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
     });
   }
 
+  function detailOnly(node) { node.classList.add('detail-only'); return node; }
   function save() { MP.set('tools.dreams', settings); }
   function saveSummary(goals) {
     if (!goals.length) { MP.set('summaries.dreams', undefined); return; }
@@ -235,5 +246,7 @@ MP.page({ id: 'dreams', title: 'Dreams & goals' }).then(function () {
     MP.summary('dreams', goals.length + (goals.length === 1 ? ' dream' : ' dreams') + ', ' + MP.money(need) + '/month needed');
   }
 
+  // Simple/Detailed is CSS-driven; re-render so the advice card follows the customer's latest preferences.
+  MP.onPrefs(function () { render(); });
   render();
 });

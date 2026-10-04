@@ -1,0 +1,15 @@
+.rd-tight { gap: 0 16px; }
+.rd-pkg-stats { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 760px) { .rd-pkg-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.rd-pkg-stats .stat { background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; }
+.rd-yby { margin-top: 14px; }
+.rd-yby > summary { cursor: pointer; font-weight: 600; min-height: 32px; }
+.rd-ideas li + li, .rd-checks li + li { margin-top: 6px; }
+.rd-checks { list-style: none; padding: 0; margin: 0; }
+.rd-checks .check { align-items: flex-start; padding-block: 4px; }
+.rd-checks .check input { flex: none; margin-top: 3px; }
+.rd-check-text { display: block; }
+#rd-advice:empty { display: none; }
+.stat .value.big-number { font-size: clamp(1.6rem, 4.5vw, 2.2rem); }
+.rd-seg { display: grid; grid-template-columns: 1fr 1fr; width: 100%; max-width: 440px; }
+.rd-seg button { padding-inline: 8px; }

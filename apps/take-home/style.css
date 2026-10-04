@@ -31,3 +31,7 @@
   .th-stats .value.big { font-size: 1.45rem; }
   .th-table th:nth-child(4), .th-table td:nth-child(4) { display: none; }
 }
+/* Simple view shows two headline numbers, so keep them side by side at every width. */
+:root[data-detail="simple"] .th-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#hidden-note .btn { margin-inline-start: 4px; min-height: 36px; }
+.field > label .term-wrap { font-weight: 600; }

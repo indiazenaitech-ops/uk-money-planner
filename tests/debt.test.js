@@ -1,5 +1,33 @@
 module.exports = async ({ page, expect, log }) => {
   const num = async (sel) => Number(await page.getAttribute(sel, 'data-value'));
+  const txt = async (sel) => (await page.innerText(sel)).trim();
+
+  const vis = (sel) => page.locator(sel).first().isVisible();
+
+  // 0. Simple view (default): essentials only, still a complete answer
+  expect((await page.getAttribute('html', 'data-detail')) === 'simple', 'new accounts start in Simple view');
+  await page.click('#tab-mortgage');
+  expect(await vis('#m-balance') && await vis('#m-over'), 'balance and overpayment shown in Simple');
+  expect(!(await vis('#m-lump')) && !(await vis('#m-svr')) && !(await vis('#m-type')), 'lump sum, SVR and type hidden in Simple');
+  await page.fill('#m-balance', '200000');
+  await page.fill('#m-rate', '5');
+  await page.fill('#m-years', '25');
+  expect(Math.abs((await num('#m-payment')) - 1169.18) <= 0.05 && await vis('#m-payment'), 'Simple shows the £1,169.18 payment');
+  expect(await vis('#m-advice'), 'mortgage advice card on the Mortgage tab');
+  expect(!(await vis('#m-deal-card')), 'deal-end card hidden in Simple');
+  expect(await vis('#ex-over'), 'beginner sees the overpayment explanation');
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'confident' }));
+  expect(!(await vis('#ex-over')), 'explanation hidden for confident users');
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'new' }));
+  await page.click('#tab-debts');
+  expect(await vis('#av-date') && await vis('#av-interest'), 'Simple shows the recommended (avalanche) debt-free date');
+  expect(!(await vis('#method-sb')) && !(await vis('#av-order')), 'snowball comparison and payoff order hidden in Simple');
+  expect(await vis('#d-advice'), 'free debt advice card always on the Debts tab');
+  await page.click('#tab-buy');
+  expect(await vis('#b-sdlt') && await vis('#b-monthly') && !(await vis('#b-stress')) && !(await vis('#b-income2')), 'Buy a home: Stamp Duty and payment shown, stress test and partner income hidden');
+  expect(await vis('#b-advice'), 'mortgage advice card on the Buy a home tab');
+  await page.click('#mp-detail-detailed');
+  expect(await vis('#b-stress') && await vis('#b-income2') && await vis('#b-ltv'), 'Detailed shows stress test, partner income and LTV');
 
   // 1. Mortgage: £200,000 at 5% over 25 years, repayment → £1,169.18 a month
   await page.click('#tab-mortgage');
@@ -94,4 +122,21 @@ module.exports = async ({ page, expect, log }) => {
   expect(goals.length === 1 && goals[0].icon === '🧹' && goals[0].target === 4000, 'debt-free dream saved with target £4,000');
   await page.click('#tab-mortgage');
   expect((await page.inputValue('#m-over')) === '200', 'mortgage overpayment remembered');
+
+  // 6. Behind on payments (from the guided setup): prominent callout with free debt advice on the Debts tab
+  await page.evaluate(() => MP.setPrefs({ answers: { debtFeel: 'behind' } }));
+  await page.click('#tab-debts');
+  expect(await vis('#debt-behind') && (await page.locator('#debt-behind .advice-card').count()) === 1, 'behind on payments: callout with debt advice');
+  expect((await page.innerText('#debt-behind')).includes('priority debts'), 'callout explains priority debts');
+
+  // 7. Prefill from the guided setup when the tool has no saved state
+  await page.evaluate(() => { MP.setPrefs({ answers: { homePrice: 300000, homeDeposit: 30000, homeFirst: 'yes' } }); MP.set('tools.debt', undefined); });
+  await page.waitForTimeout(700);
+  await page.reload();
+  await page.waitForSelector('#tabs, [role=tablist]');
+  expect((await page.getAttribute('#tab-buy', 'aria-selected')) === 'true', 'opens on Buy a home when the guide has a home price');
+  expect((await page.inputValue('#b-price')) === '300000' && (await page.inputValue('#b-deposit')) === '30000', 'price £300,000 and deposit £30,000 from the guide');
+  expect((await page.getAttribute('#b-buyer [data-value="ftb"]', 'aria-pressed')) === 'true', 'first-time buyer from the guide');
+  expect((await num('#b-sdlt')) === 0 && (await txt('#b-sdlt')) === '£0', 'first-time buyer Stamp Duty £0 on £300,000');
+  expect((await txt('#b-loan')) === '£270,000', 'mortgage needed £270,000');
 };

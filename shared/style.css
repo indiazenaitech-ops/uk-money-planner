@@ -215,3 +215,4 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
   body { background: #fff; color: #000; }
   .card { box-shadow: none; border-color: #bbb; break-inside: avoid; }
 }
+@media (max-width: 480px) { .mp-user { display: none; } .mp-brand small { display: none; } }

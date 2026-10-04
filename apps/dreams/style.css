@@ -16,3 +16,4 @@
 .timeline li { display: flex; gap: 12px; padding-block: 6px; padding-inline-start: 16px; position: relative; }
 .timeline li::before { content: ""; position: absolute; inset-inline-start: -8px; top: 13px; width: 13px; height: 13px; border-radius: 50%; background: var(--accent); }
 .timeline .when { font-weight: 700; min-width: 44px; font-variant-numeric: tabular-nums; }
+.guide-note { color: var(--accent); font-weight: 600; margin-top: 2px; }

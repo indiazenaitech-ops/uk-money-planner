@@ -153,6 +153,7 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
     var hours = el('input', { type: 'number', id: 'hours', min: '1', max: '100', step: '0.5', inputmode: 'decimal', value: s.hours });
     onInput(hours, 'hours');
     var hoursField = MP.field('Hours a week', hours);
+    function ex(key, id) { var e = MP.explain(key); if (e) e.id = id; return e; }
     hoursField.hidden = s.period !== 'hour';
     var period = MP.seg(PERIODS, s.period, function (v) { s.period = v; hoursField.hidden = v !== 'hour'; update(); }, 'Pay period');
     period.id = 'period';
@@ -194,23 +195,28 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
     return el('section', { class: 'card', 'aria-labelledby': 'h-pay' },
       el('h2', { id: 'h-pay' }, 'Your pay'),
       MP.field('Pay before tax', pay.wrap),
+      ex('personal-allowance', 'ex-allowance'),
       el('div', { class: 'field' }, el('span', { class: 'label' }, 'Paid per'), period),
       hoursField,
       el('div', { class: 'field' }, el('span', { class: 'label' }, 'Where you live'), region,
-        el('span', { class: 'hint' }, 'Scotland has its own income tax rates. National Insurance is the same everywhere.')),
-      el('h3', null, 'Workplace pension'),
+        el('span', { class: 'hint' }, 'Scotland has its own income tax rates. ', MP.term('national-insurance'), ' is the same everywhere.')),
+      ex('national-insurance', 'ex-ni'),
+      el('h3', null, MP.term('workplace-pension')),
       el('div', { class: 'grid-2 th-tight' },
         MP.field('You pay in (%)', pct),
-        MP.field('Percentage of', basis)),
-      el('p', { class: 'small muted', style: { margin: '-4px 0 12px' } }, 'Qualifying earnings are your pay between ' + MP.money(AE.lowerQE) + ' and ' + MP.money(AE.upperQE) + ', the usual auto-enrolment basis.'),
-      MP.field('How it is taken', method, 'Your payslip or pension provider can tell you. Many auto-enrolment schemes use relief at source.'),
+        detailOnly(MP.field('Percentage of', basis))),
+      el('p', { class: 'small muted simple-only', id: 'pension-assume', style: { margin: '-4px 0 12px' } }, 'We assume the usual workplace set-up: relief at source, on qualifying earnings (your pay between ' + MP.money(AE.lowerQE) + ' and ' + MP.money(AE.upperQE) + '). Switch to Detailed to change this.'),
+      el('p', { class: 'small muted detail-only', style: { margin: '-4px 0 12px' } }, 'Qualifying earnings are your pay between ' + MP.money(AE.lowerQE) + ' and ' + MP.money(AE.upperQE) + ', the usual auto-enrolment basis.'),
+      detailOnly(MP.field('How it is taken', method, 'Your payslip or pension provider can tell you. Many auto-enrolment schemes use relief at source.')),
+      detailOnly(ex('salary-sacrifice', 'ex-sacrifice')),
       loans,
-      el('details', { class: 'more', open: !!(s.bonus || s.bik || s.taxCode || s.blind || s.marriage) },
+      el('details', { class: 'more detail-only', id: 'more-options', open: !!(s.bonus || s.bik || s.taxCode || s.blind || s.marriage) },
         el('summary', null, 'Bonus, benefits and tax code'),
         el('div', { class: 'more-body' },
           MP.field('One-off bonus this year', bonus.wrap),
           MP.field('Taxable benefits a year', bik.wrap, 'For example the benefit-in-kind value of a company car (on your P11D or payslip). Taxed but no NI for you.'),
-          MP.field('Tax code (optional)', code, 'From your payslip or the HMRC app. Leave blank to use the standard allowance.'),
+          MP.field(el('span', null, MP.term('tax-code'), ' (optional)'), code, 'From your payslip or the HMRC app. Leave blank to use the standard allowance.'),
+          ex('tax-code', 'ex-tax-code'),
           el('p', { class: 'small', id: 'code-note', 'aria-live': 'polite' }),
           el('label', { class: 'check' }, blind, 'Blind person\'s allowance (about ' + MP.money(BLIND) + ' more tax-free)'),
           el('label', { class: 'check' }, marriage, 'My partner gives me their marriage allowance'))),
@@ -221,6 +227,22 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
           if (!MP.confirm('Clear your answers and start again?')) return;
           s = defaults(); save(); render(); MP.toast('Reset.');
         } }, 'Reset')));
+  }
+
+  function detailOnly(node) { if (node) node.classList.add('detail-only'); return node; }
+
+  /* Options only shown in Detailed view that are not at their usual values. They still count in Simple view,
+     so Simple says so rather than silently changing the answer. */
+  function hiddenChoices() {
+    var d = defaults(), out = [];
+    if (MP.num(s.bonus) > 0) out.push('a bonus of ' + MP.money(MP.num(s.bonus)));
+    if (MP.num(s.bik) > 0) out.push('taxable benefits of ' + MP.money(MP.num(s.bik)));
+    if (String(s.taxCode || '').trim()) out.push('tax code ' + String(s.taxCode).trim().toUpperCase());
+    if (s.blind) out.push('blind person\'s allowance');
+    if (s.marriage) out.push('marriage allowance');
+    if (s.pensionMethod !== d.pensionMethod && METHODS[s.pensionMethod]) out.push('pension taken by ' + METHODS[s.pensionMethod].split(' (')[0].toLowerCase());
+    if (s.pensionBasis !== d.pensionBasis) out.push('pension on all of your pay');
+    return out;
   }
 
   function saveProfile() {
@@ -235,7 +257,7 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
   function row(key, label, yearly, opts) {
     opts = opts || {};
     return el('tr', { class: opts.cls || null }, el('th', { scope: 'row' }, label),
-      cell(key ? 'y-' + key : null, yearly), cell(key ? 'm-' + key : null, yearly / 12), cell(key ? 'w-' + key : null, yearly / 52));
+      cell(key ? 'y-' + key : null, yearly), cell(key ? 'm-' + key : null, yearly / 12), cell(key ? 'w-' + key : null, yearly / 52, 'detail-only'));
   }
 
   function update() {
@@ -258,10 +280,16 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
       el('div', { class: 'th-stats' },
         el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Take-home a month'), el('span', { class: 'value big', id: 'takehome-month' }, MP.money(r.takeHome / 12, true))),
         el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Take-home a year'), el('span', { class: 'value', id: 'takehome-year' }, MP.money(r.takeHome))),
-        el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Tax and NI on your next £1'), el('span', { class: 'value', id: 'marginal' }, MP.pct(marginal, 0))),
-        el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Effective tax rate'), el('span', { class: 'value', id: 'effective' }, MP.pct(effective)))),
-      el('p', { class: 'small muted', style: { margin: '10px 0 0' } },
+        el('div', { class: 'stat detail-only' }, el('span', { class: 'label' }, 'Tax and NI on your next £1'), el('span', { class: 'value', id: 'marginal' }, MP.pct(marginal, 0))),
+        el('div', { class: 'stat detail-only' }, el('span', { class: 'label' }, 'Effective tax rate'), el('span', { class: 'value', id: 'effective' }, MP.pct(effective)))),
+      el('p', { class: 'small muted detail-only', style: { margin: '10px 0 0' } },
         'Next £1 includes student loan. Effective rate is income tax and NI as a share of your pay of ' + MP.money(r.gross) + '.')));
+
+    var hidden = hiddenChoices();
+    if (hidden.length) {
+      results.appendChild(el('p', { class: 'callout small simple-only', id: 'hidden-note' }, 'Also counted, from the Detailed view: ' + hidden.join(', ') + '. ',
+        el('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: function () { MP.setPrefs({ detail: 'detailed' }); } }, 'Show all options')));
+    }
 
     // personal allowance taper
     var taperTop = R.paTaperStart + 2 * R.personalAllowance;
@@ -287,10 +315,10 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
     if (r.method === 'sacrifice' && r.C) tbody.appendChild(row(null, 'Less salary sacrifice', -r.C, { cls: 'sub' }));
     if (r.method === 'net' && r.C) tbody.appendChild(row(null, 'Less pension (before tax)', -r.C, { cls: 'sub' }));
     tbody.appendChild(row('taxable', 'Taxable pay', r.taxable));
-    tbody.appendChild(row(null, r.codeUsed ? 'Tax-free allowance (from tax code)' : 'Tax-free allowance', r.allowance, { cls: 'sub' }));
+    tbody.appendChild(row(null, r.codeUsed ? 'Tax-free allowance (from tax code)' : el('span', null, MP.term('personal-allowance', 'Tax-free allowance')), r.allowance, { cls: 'sub' }));
     tbody.appendChild(row('tax', 'Income tax', r.tax, { cls: 'ded' }));
     r.bands.forEach(function (b) {
-      tbody.appendChild(row(null, b.name + ' ' + MP.pct(b.rate, 0) + ' on ' + MP.money(b.amount), b.tax, { cls: 'sub' }));
+      tbody.appendChild(row(null, b.name + ' ' + MP.pct(b.rate, 0) + ' on ' + MP.money(b.amount), b.tax, { cls: 'sub band detail-only' }));
     });
     if (r.marriage) tbody.appendChild(row(null, 'Marriage allowance reduction', -r.marriage, { cls: 'sub' }));
     tbody.appendChild(row('ni', 'National Insurance', r.ni, { cls: 'ded' }));
@@ -301,7 +329,7 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
     results.appendChild(el('section', { class: 'card', 'aria-labelledby': 'h-table' },
       el('h2', { id: 'h-table' }, 'Your pay, line by line'),
       el('div', { class: 'scroll-x' }, el('table', { class: 'table th-table', id: 'pay-table' },
-        el('thead', null, el('tr', null, el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Item')), el('th', { class: 'num', scope: 'col' }, 'Yearly'), el('th', { class: 'num', scope: 'col' }, 'Monthly'), el('th', { class: 'num', scope: 'col' }, 'Weekly'))),
+        el('thead', null, el('tr', null, el('th', { scope: 'col' }, el('span', { class: 'visually-hidden' }, 'Item')), el('th', { class: 'num', scope: 'col' }, 'Yearly'), el('th', { class: 'num', scope: 'col' }, 'Monthly'), el('th', { class: 'num detail-only', scope: 'col' }, 'Weekly'))),
         tbody)),
       el('p', { class: 'small muted', style: { margin: '10px 0 0' } },
         (r.C ? 'Total going into your pension: ' + MP.money(r.C) + ' a year, plus anything your employer adds. ' : '') +
@@ -316,6 +344,12 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
       el('h2', { id: 'h-donut' }, 'Where your pay goes'),
       r.gross > 0 ? MP.donut({ items: items, center: r.gross > 0 ? MP.pct(Math.max(0, r.takeHome) / r.gross, 0) + ' kept' : '', label: 'Where your yearly pay goes' }) :
         el('p', { class: 'muted' }, 'Enter your pay to see the breakdown.')));
+
+    // getting advice: always shown above £100,000 (the allowance taper makes tax planning worth it)
+    var advice = MP.adviceCard('tax');
+    advice.id = 'th-advice';
+    if (r.gross <= 100000) advice.classList.add('detail-only');
+    results.appendChild(advice);
 
     updateRise(r);
     var sal = Math.round(r.salary);
@@ -367,5 +401,6 @@ MP.page({ id: 'take-home', title: 'Take-home pay' }).then(function () {
   function save() { MP.set('tools.take-home', s); }
 
   MP.onTheme(function () { if (results) update(); });
+  MP.onPrefs(function () { if (results) update(); });
   render();
 });

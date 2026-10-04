@@ -3,31 +3,52 @@ module.exports = async ({ page, expect }) => {
   const setRange = (sel, v) => page.evaluate(([s, x]) => { const e = document.querySelector(s); e.value = x; e.dispatchEvent(new Event('input', { bubbles: true })); }, [sel, String(v)]);
   await page.waitForSelector('#results');
 
-  // known setup: age 40, retire at 67, one £100,000 pot, £30,000 salary, 5% + 3% on qualifying earnings
+  // new accounts start in Simple view, as a beginner
+  expect(await page.isHidden('#charges'), 'charges (detail-only) hidden in Simple view');
+  expect(await page.isHidden('#pot-value-0') && await page.isVisible('#pot-total'), 'Simple view shows one total pot box, not the list');
+  expect(await page.isVisible('#net-income') && await page.isVisible('#gap'), 'Simple view still shows the headline income and the gap');
+  expect(await page.locator('#h-pots + .explain').isVisible(), 'beginner explanation visible by default');
+  expect(await page.locator('.advice-card').count() === 1, 'pension advice card shown');
+
+  // known setup, all from Simple view: age 40, retire at 67, £100,000 in pensions, £30,000 salary, 5% + 3%
   await page.fill('#age', '40');
   await page.locator('#age').dispatchEvent('change');
   await page.waitForSelector('#retire-age');
   await setRange('#retire-age', 67);
-  await page.fill('#pot-value-0', '100000');
+  await page.fill('#pot-total', '100000');
   await page.fill('#salary', '30000');
   await page.fill('#emp-pct', '5');
   await page.fill('#er-pct', '3');
-  await page.click('#basis [data-value="qualifying"]');
-  await page.click('#scenario [data-value="mid"]');
-  await page.fill('#charges', '0.5');
   await page.waitForTimeout(150);
 
-  // contributions: 8% of (30,000 − 6,240) = £1,900.80 a year = £158.40 a month
+  // contributions use the hidden default (qualifying earnings): 8% of (30,000 − 6,240) = £158.40 a month
   const monthly = await val('#monthly-contrib');
   expect(Math.abs(monthly - 158.4) < 0.01, 'monthly contribution £158.40, got ' + monthly);
 
-  // projected pot in today's money matches an independent future-value calculation
+  // projected pot in today's money matches an independent calculation using the defaults (5% growth, 0.5% charges)
   const rate = 0.05 - 0.005, infl = 0.025, years = 27;
   let bal = 100000;
   for (let i = 1; i <= years * 12; i++) bal = bal * (1 + rate / 12) + 158.4 * Math.pow(1 + infl, Math.floor((i - 1) / 12));
   const expected = bal / Math.pow(1 + infl, years);
   const pot67 = await val('#pot-real');
-  expect(Math.abs(pot67 - expected) < 2, `pot at 67 ≈ £${Math.round(expected)}, got £${pot67}`);
+  expect(Math.abs(pot67 - expected) < 2, `Simple view: pot at 67 ≈ £${Math.round(expected)}, got £${pot67}`);
+
+  // "I'm not sure" about National Insurance at 40 assumes the full State Pension
+  await page.check('#ni-unsure');
+  await page.waitForTimeout(100);
+  expect(Math.abs(await val('#sp-yearly') - 12548) <= 1 && await page.isDisabled('#ni-years'), 'not sure at 40: full State Pension assumed');
+  await page.uncheck('#ni-unsure');
+
+  // switch to Detailed: the advanced inputs appear and the answer is unchanged
+  await page.click('#mp-detail-detailed');
+  await page.waitForTimeout(100);
+  expect(await page.isVisible('#charges') && await page.isVisible('#pot-value-0'), 'detail-only inputs visible after switching to Detailed');
+  expect(await page.inputValue('#pot-value-0') === '100000', 'Simple total became the first pot');
+  await page.click('#basis [data-value="qualifying"]');
+  await page.click('#scenario [data-value="mid"]');
+  await page.fill('#charges', '0.5');
+  await page.waitForTimeout(150);
+  expect(Math.abs(await val('#pot-real') - pot67) < 1, 'Detailed with the same defaults gives the same pot');
 
   // tax-free cash is 25% of the pot
   const lump = await val('#lump-sum');
@@ -91,4 +112,25 @@ module.exports = async ({ page, expect }) => {
   expect(Math.abs(await val('#pot-real') - pot67) < 2, 'projection is the same after reload');
   const summary = await page.evaluate(() => MP.get('summaries.retirement').text);
   expect(/^Retire at 67: £[\d,]+ a year$/.test(summary), 'home summary saved: ' + summary);
+
+  // two pots: the Simple total adds them up and is read-only
+  await page.click('#add-pot');
+  await page.fill('#pot-value-1', '5000');
+  await page.click('#mp-detail-simple');
+  await page.waitForTimeout(100);
+  expect(await page.inputValue('#pot-total') === '105000' && await page.isDisabled('#pot-total'), 'Simple total sums two pots and is locked');
+
+  // confident customers do not see the beginner explanations
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'confident' }));
+  await page.waitForTimeout(100);
+  expect(await page.locator('#h-pots + .explain').isHidden(), 'explanation hidden for confident customers');
+
+  // guided setup answers prefill an empty plan
+  await page.evaluate(() => { MP.setPrefs({ answers: { retireAge: 60, pensionTotal: 85000 } }); MP.set('tools.retirement', undefined); });
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.waitForSelector('#results');
+  expect(await page.inputValue('#retire-age') === '60' && await page.inputValue('#pot-total') === '85000', 'guide answers prefill retire age 60 and £85,000, got ' + await page.inputValue('#retire-age') + ' / ' + await page.inputValue('#pot-total'));
+  await page.click('#mp-detail-detailed');
+  expect(await page.inputValue('#pot-value-0') === '85000', 'guide pension total becomes the single pot');
 };

@@ -36,3 +36,5 @@ fieldset.acc legend { font-weight: 700; font-size: .9rem; padding: 0 6px; }
 .acc-grid { align-items: end; }
 @media (max-width: 600px) { .acc-grid { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); } }
 .grid-3.stats { align-items: end; }
+.guide-note { color: var(--accent); font-weight: 600; margin: 0 0 10px; }
+#gr-headline { margin-bottom: 4px; }

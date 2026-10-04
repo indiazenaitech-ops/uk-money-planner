@@ -39,6 +39,14 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
     return el('span', { class: 'chip ' + (n < 0 ? 'danger' : n <= 14 ? 'warning' : 'info') + ' countdown' }, txt);
   }
   function monthsUntil(s) { var n = daysTo(s); return n == null ? 0 : Math.max(1, Math.round(n / 30.4375)); }
+  /* Letters about missed payments, arrears or debt collection: these get a free debt advice card. */
+  var DEBT_RE = /\barrears\b|\bmissed (a |your |the )?(monthly )?payments?\b|\bdebt collect(ion|or|ors|ing)\b|\bdebt recovery\b|\bdefault notice\b|\bnotice of default\b|\bfinal (notice|demand|reminder)\b|\bbehind (on|with) (your )?(payments|rent|bills|repayments)\b|\bpayments? (is |are )?overdue\b|\bcounty court\b|\bbailiffs?\b|\benforcement agents?\b/i;
+  function isDebt(it) {
+    if (!it || it.type === 'scam') return false;
+    if (typeof it.debt === 'boolean') return it.debt;
+    return DEBT_RE.test((it.subject || '') + '\n' + (it.snippet || ''));
+  }
+
   function itemName(it) {
     var k = KINDS[it.kind], t = TYPES[it.type] || TYPES.other;
     var what = it.type === 'renewal' ? (k ? k + ' renewal' : 'Renewal') : it.type === 'price' ? (k ? k + ' price rise' : 'Price rise') : k || t.label;
@@ -58,7 +66,8 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
         snippet: (m.text || '').slice(0, 500), attachments: (m.attachments || []).slice(0, 5),
         type: f.type, kind: f.kind, company: f.company, amount: f.amount, oldAmount: f.oldAmount, minPayment: f.minPayment, balance: f.balance,
         dueDate: f.dueDate, frequency: f.frequency, directDebit: f.directDebit, rates: f.rates,
-        scamReasons: f.scamReasons, hmrcWarning: f.hmrcWarning, sample: !!m.sample
+        scamReasons: f.scamReasons, hmrcWarning: f.hmrcWarning, sample: !!m.sample,
+        debt: f.type !== 'scam' && DEBT_RE.test((m.subject || '') + '\n' + (m.text || ''))
       };
       state.items.unshift(it); added++;
       counts[it.type] = (counts[it.type] || 0) + 1;
@@ -223,6 +232,9 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
       el('p', null, el('strong', null, '🔒 Read on this device only. '), 'Your emails and letters are read in this browser and never uploaded. We keep only the key facts, the subject, the sender and the first 500 characters, encrypted with your password.'),
       el('p', { class: 'tiny muted' }, 'Live connection to Gmail or Outlook can be added by your bank later.')));
 
+    var debts = state.items.filter(isDebt);
+    if (debts.length) main.appendChild(debtHelp(debts));
+
     var split = el('div', { class: 'split' });
     var left = el('div', { class: 'stack' });
     left.appendChild(importCard());
@@ -235,6 +247,14 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
     split.appendChild(right);
     main.appendChild(split);
     saveSummary();
+  }
+
+  function debtHelp(debts) {
+    return el('section', { class: 'card debt-help', id: 'debt-help', 'aria-labelledby': 'h-debt' },
+      el('h2', { id: 'h-debt' }, debts.length === 1 ? 'One of your letters is about a missed payment or debt' : debts.length + ' of your letters are about missed payments or debt'),
+      el('p', { class: 'small' }, 'Please do not ignore ', debts.length === 1 ? 'it' : 'them', ' (', debts.map(function (d) { return '"' + d.subject + '"'; }).slice(0, 3).join('; '), '). Contact the company to say you have seen it and ask for time to pay. Missed payments can affect your ',
+        MP.term('credit-score', 'credit score'), ', and getting help early stops things getting harder.'),
+      MP.adviceCard('debt'));
   }
 
   function importCard() {
@@ -251,6 +271,7 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
     fillStatus(status);
     return el('section', { class: 'card', 'aria-labelledby': 'h-add' },
       el('h2', { id: 'h-add' }, 'Add emails and letters'),
+      MP.explain(null, 'An .eml file is one email saved as a file. In Gmail on a computer, open the email, press the three dots (⋮) and choose "Download message". On a phone, it is easier to copy the email text and paste it below.'),
       zone,
       el('div', { class: 'field', style: { marginTop: '16px' } }, el('label', { for: 'paste-text' }, 'Or paste an email or letter'), ta),
       el('button', { class: 'btn btn-primary btn-block', type: 'button', id: 'paste-read', onclick: readPasted }, 'Read this text'),
@@ -266,7 +287,8 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
       el('div', { class: 'glance' },
         el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Due in the next 30 days'), el('span', { class: 'value', id: 'due-30' }, MP.money(soonTotal)), el('span', { class: 'tiny muted' }, soon.length + (soon.length === 1 ? ' payment' : ' payments'))),
         el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Bills in the next 12 months'), el('span', { class: 'value', id: 'due-year' }, MP.money(year)), el('span', { class: 'tiny muted' }, state.bills.length + ' in your list')),
-        el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Possible scams'), el('span', { class: 'value' + (scams ? ' neg' : ''), id: 'scam-count' }, String(scams)))));
+        el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Possible scams'), el('span', { class: 'value' + (scams ? ' neg' : ''), id: 'scam-count' }, String(scams)))),
+      MP.explain(null, 'How to spot a scam: it rushes you ("within 24 hours"), offers money or threatens a fine, and asks you to click a link or give bank details. Check the sender\'s full email address. Your bank and HMRC will never ask for your PIN or password.'));
   }
 
   function tabs() {
@@ -286,6 +308,9 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
         el('p', { class: 'muted' }, 'Add a saved email, a PDF letter or paste some text, and we will pick out the amount, the due date and what kind of message it is.'),
         el('button', { class: 'btn btn-primary', type: 'button', onclick: loadSamples }, 'Try 5 sample emails')));
       return sec;
+    }
+    if (state.items.some(function (i) { return i.type === 'renewal' || i.type === 'price'; })) {
+      sec.appendChild(MP.explain(null, 'Renewal prices are often higher than last year, and auto-renewal means you can roll over without noticing (people call this the "loyalty penalty"). Compare prices about 3 to 4 weeks before the renewal date, then ask your provider to match or switch.'));
     }
     var list = el('div', { class: 'mail-list', id: 'item-list' });
     state.items.slice().sort(function (a, b) {
@@ -310,10 +335,16 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
       extras.push(el('li', { class: ch > 0 ? 'neg' : 'pos' }, 'Was ' + MP.money(it.oldAmount, true) + ', now ' + MP.money(it.amount, true) + ' (' + (ch > 0 ? 'up ' : 'down ') + MP.pct(Math.abs(ch)) + ')'));
     }
     if (it.minPayment && it.minPayment !== it.amount) extras.push(el('li', null, 'Minimum payment ' + MP.money(it.minPayment, true) + '. Paying only this costs more in interest.'));
-    if (it.balance && it.balance !== it.amount) extras.push(el('li', null, 'Balance ' + MP.money(it.balance, true)));
-    if (it.directDebit && !scam) extras.push(el('li', null, 'Paid by Direct Debit'));
-    if (it.rates && it.rates.length && !scam) extras.push(el('li', null, 'Rates mentioned: ' + it.rates.join(', ')));
-    if (it.attachments && it.attachments.length) extras.push(el('li', { class: 'muted' }, 'Attachments (not opened): ' + it.attachments.join(', ')));
+    if (it.balance && it.balance !== it.amount) extras.push(el('li', { class: 'detail-only' }, 'Balance ' + MP.money(it.balance, true)));
+    if (it.directDebit && !scam) extras.push(el('li', null, 'Paid by ', MP.term('direct-debit', 'Direct Debit')));
+    if (it.rates && it.rates.length && !scam) {
+      var rateTerms = [];
+      if (it.rates.some(function (r) { return /APR/.test(r); })) rateTerms.push(MP.term('apr', 'What is APR?'));
+      if (it.rates.some(function (r) { return /AER/.test(r); })) rateTerms.push(MP.term('aer', 'What is AER?'));
+      extras.push(el('li', { class: 'detail-only' }, 'Rates mentioned: ' + it.rates.join(', ') + (rateTerms.length ? ' ' : ''), rateTerms));
+    }
+    if (it.attachments && it.attachments.length) extras.push(el('li', { class: 'muted detail-only' }, 'Attachments (not opened): ' + it.attachments.join(', ')));
+    var allDetail = extras.every(function (e) { return e.classList.contains('detail-only'); });
 
     var due = it.dueDate ? parseIso(it.dueDate) : null;
     var dueLabel = it.type === 'renewal' ? 'Renews' : it.type === 'price' ? 'Starts' : 'Due';
@@ -341,11 +372,12 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
       !scam ? el('div', { class: 'facts' },
         fact('Amount', it.amount > 0 ? MP.money(it.amount, true) : 'Not found', 'item-amount' + (it.amount > 0 ? '' : ' missing')),
         fact(dueLabel, due ? MP.fmtDate(due) : 'Not found', 'item-due' + (due ? '' : ' missing'), due ? countdown(it.dueDate) : null),
-        fact('How often', FREQ[it.frequency] || FREQ[''], 'item-freq'),
+        el('div', { class: 'detail-only fact-freq' }, fact('How often', FREQ[it.frequency] || FREQ[''], 'item-freq')),
         fact('Company', it.company || '—', 'item-company')) : null,
-      extras.length ? el('ul', { class: 'small extras' }, extras) : null,
+      !scam && isDebt(it) ? el('p', { class: 'callout warning small debt-flag' }, el('strong', null, 'This is about a missed payment or debt. '), 'Contact the company soon, and see the free debt help at the top of this page.') : null,
+      extras.length ? el('ul', { class: 'small extras' + (allDetail ? ' detail-only' : '') }, extras) : null,
       it.goalId && it.planMonthly ? el('p', { class: 'small plan-line' }, '🎯 Planned: put aside ', el('strong', { class: 'plan-monthly' }, MP.money(it.planMonthly, true)), ' a month in ', el('a', { href: '../dreams/index.html' }, 'Dreams & goals'), '.') : null,
-      it.snippet ? el('details', { class: 'snippet' }, el('summary', { class: 'small' }, 'Show the text we kept'), el('p', { class: 'small muted' }, it.snippet + (it.snippet.length >= 500 ? '…' : ''))) : null,
+      it.snippet ? el('details', { class: 'snippet detail-only' }, el('summary', { class: 'small' }, 'Show the text we kept'), el('p', { class: 'small muted' }, it.snippet + (it.snippet.length >= 500 ? '…' : ''))) : null,
       el('div', { class: 'row mail-actions' }, actions));
   }
 
@@ -360,9 +392,10 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
     var form = el('form', { id: 'edit-form', novalidate: true },
       msg ? el('p', { class: 'callout warning' }, msg) : el('p', { class: 'small muted' }, 'We read emails automatically, so we are not always right. Check these against the email.'),
       el('div', { class: 'grid-2' },
-        MP.field('What kind of message', type), MP.field('What it is for', kind),
+        MP.field('What kind of message', type), detailOnly(MP.field('What it is for', kind)),
         MP.field('Company', company), MP.field('Amount', amount.wrap),
-        MP.field('Due or renewal date', date), MP.field('How often', freq)),
+        MP.field('Due or renewal date', date), detailOnly(MP.field('How often', freq))),
+      el('p', { class: 'small muted simple-only' }, 'How often it repeats is kept as it is. Switch to Detailed view to change it.'),
       err, el('button', { class: 'btn btn-primary', type: 'submit', id: 'e-save' }, 'Save'));
     var close = MP.modal(form, { title: 'Check the details' });
     form.addEventListener('submit', function (e) {
@@ -380,6 +413,8 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
       if (after && x.amount > 0 && x.dueDate) after(x); else MP.toast('Saved.');
     });
   }
+
+  function detailOnly(node) { node.classList.add('detail-only'); return node; }
 
   function upcomingView() {
     var sec = el('section', { id: 'panel', role: 'tabpanel', 'aria-labelledby': 'tab-upcoming', class: 'stack' });
@@ -407,7 +442,7 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
       el('div', { class: 'row', style: { justifyContent: 'space-between', alignItems: 'flex-end' } },
         el('div', null, el('div', { class: 'muted small' }, 'Bills and renewals, next 12 months'), el('div', { class: 'big-number', id: 'year-total' }, MP.money(year))),
         el('div', { class: 'small muted' }, 'About ' + MP.money(year / 12) + ' a month on average')),
-      el('div', { class: 'bill-chart' }, MP.barChart({ items: months.map(function (m) { return { label: m.date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), value: m.total, color: '--c1' }; }), width: 420, labelWidth: 64, label: 'Bills per month for the next 12 months' }))));
+      el('div', { class: 'bill-chart detail-only' }, MP.barChart({ items: months.map(function (m) { return { label: m.date.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }), value: m.total, color: '--c1' }; }), width: 420, labelWidth: 64, label: 'Bills per month for the next 12 months' }))));
 
     // the bills themselves
     var list = el('ul', { class: 'bill-list', id: 'bill-list' }, state.bills.slice().sort(function (a, b) {
@@ -434,7 +469,7 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
           return el('li', null, el('span', { class: 'when' }, r.date.getDate() + ' ' + r.date.toLocaleDateString('en-GB', { month: 'short' })), el('span', { class: 'what' }, r.bill.name), el('span', { class: 'amt' }, MP.money(r.bill.amount, true)));
         }))));
     });
-    sec.appendChild(el('section', { class: 'card', 'aria-labelledby': 'h-months' }, el('h2', { id: 'h-months' }, 'Month by month'),
+    sec.appendChild(el('section', { class: 'card detail-only', id: 'months-card', 'aria-labelledby': 'h-months' }, el('h2', { id: 'h-months' }, 'Month by month'),
       monthBox.childNodes.length ? monthBox : el('p', { class: 'muted' }, 'None of your bills fall in the next 12 months.'),
       el('p', { class: 'total-line' }, el('span', null, 'Total for the year'), el('strong', null, MP.money(year, true)))));
     sec.appendChild(tipsCard());
@@ -443,6 +478,7 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
 
   function tipsCard() {
     return el('section', { class: 'card', 'aria-labelledby': 'h-tips' }, el('h2', { id: 'h-tips' }, 'Renewal tips'),
+      MP.explain(null, 'The "loyalty penalty" is when staying with the same company costs more than a new customer would pay. Rules now stop this for home and car insurance, but phone, broadband and energy deals can still creep up, so check each renewal.'),
       el('ul', { class: 'small' },
         el('li', null, el('strong', null, 'Shop around 3 to 4 weeks before a renewal. '), 'Insurance quotes are often cheapest when you buy about 20 to 27 days before the start date, and dearer at the last minute.'),
         el('li', null, el('strong', null, 'Loyalty penalty rules: '), 'since January 2022, home and car insurers must not charge you more to renew than they would charge a new customer for the same cover through the same channel (FCA rules). Comparing can still save money, because other insurers may be cheaper.'),
@@ -492,5 +528,6 @@ MP.page({ id: 'inbox', title: 'Money inbox' }).then(function () {
     MP.summary('inbox', text);
   }
 
+  MP.onPrefs(render);
   render();
 });

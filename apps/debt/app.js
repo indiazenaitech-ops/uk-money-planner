@@ -22,12 +22,16 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     return parts.join(' ');
   }
 
+  /* Defaults, prefilled from About you and the guided setup (MP.prefs().answers) where we can. */
   function defaults() {
-    var p = MP.profile();
+    var p = MP.profile(), A = MP.prefs().answers || {};
+    var price = +A.homePrice > 0 ? +A.homePrice : 300000;
+    var deposit = +A.homeDeposit >= 0 && A.homeDeposit !== '' && A.homeDeposit != null ? Math.min(+A.homeDeposit, price) : Math.round(price * 0.1);
     return {
-      tab: 'mortgage',
+      tab: A.debtFeel === 'behind' ? 'debts' : +A.homePrice > 0 ? 'buy' : 'mortgage',
       mortgage: { balance: 200000, rate: 5, years: 25, months: 0, type: 'repayment', dealEnd: addMonthsIso(24), svr: 7.5, over: 0, lump: 0, allow: 10 },
-      buy: { price: 300000, deposit: 30000, income1: +p.salary || 35000, income2: 0, rate: 4.5, years: 30, buyer: 'ftb' },
+      buy: { price: price, deposit: deposit, income1: +p.salary || +A.salary || 35000, income2: +p.partnerSalary || +A.partnerSalary || 0, rate: 4.5, years: 30,
+        buyer: A.homeFirst === 'no' ? 'mover' : 'ftb' },
       debts: [
         { id: MP.uid(), name: 'Credit card', balance: 3200, apr: 24.9, min: 96 },
         { id: MP.uid(), name: 'Car finance', balance: 7800, apr: 9.9, min: 210 },
@@ -214,10 +218,20 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     bind(inp, obj, key, { max: 100 });
     return MP.field(label, el('div', { class: 'pct-input' }, inp), hint);
   }
-  function stat(label, value, id, dataValue, cls) {
-    return el('div', { class: 'stat' }, el('span', { class: 'label' }, label),
+  function stat(label, value, id, dataValue, cls, wrapCls) {
+    return el('div', { class: 'stat' + (wrapCls ? ' ' + wrapCls : '') }, el('span', { class: 'label' }, label),
       el('span', { class: 'value' + (cls ? ' ' + cls : ''), id: id, dataset: dataValue != null ? { value: String(dataValue) } : null }, value));
   }
+
+  function detailOnly(node) { if (node) node.classList.add('detail-only'); return node; }
+  function ex(key, id) { var e = MP.explain(key); if (e && id) e.id = id; return e; }
+  /* Options only shown in Detailed view that are not at their usual values still count in Simple view, so say so. */
+  function hiddenNote(list, id) {
+    if (!list.length) return null;
+    return el('p', { class: 'callout small simple-only', id: id }, 'Also counted, from the Detailed view: ' + list.join(', ') + '. ',
+      el('button', { type: 'button', class: 'btn btn-sm btn-ghost', onclick: function () { MP.setPrefs({ detail: 'detailed' }); } }, 'Show all options'));
+  }
+  function advice(topic, id) { var a = MP.adviceCard(topic); a.id = id; return a; }
 
   /* ================= 1. mortgage ================= */
   function mortgageInputs() {
@@ -233,21 +247,26 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       el('h2', { id: 'h-m-in' }, 'Your mortgage'),
       moneyField('Amount left to pay', 'm-balance', m, 'balance', 'Your latest mortgage statement or app shows this.'),
       pctField('Interest rate now (%)', 'm-rate', m, 'rate'),
+      ex('fixed-rate', 'ex-fixed'),
       el('div', { class: 'field' }, el('span', { class: 'label' }, 'Time left on the mortgage'),
         el('div', { class: 'grid-2 tight' },
           el('label', { class: 'sub' }, el('span', { class: 'small muted' }, 'Years'), years),
           el('label', { class: 'sub' }, el('span', { class: 'small muted' }, 'Months'), months))),
-      el('div', { class: 'field' }, el('span', { class: 'label' }, 'Type'), type),
+      detailOnly(el('div', { class: 'field', id: 'm-type-field' }, el('span', { class: 'label' }, 'Type'), type)),
+      el('div', { class: 'detail-only', id: 'm-deal-box' },
+        el('hr'),
+        el('h3', null, 'When your deal ends'),
+        el('div', { class: 'grid-2 tight' },
+          MP.field('Deal ends on', deal),
+          pctField(el('span', null, 'Rate after (', MP.term('svr', 'SVR'), ')'), 'm-svr', m, 'svr')),
+        ex('svr', 'ex-svr')),
       el('hr'),
-      el('h3', null, 'When your deal ends'),
-      el('div', { class: 'grid-2 tight' },
-        MP.field('Deal ends on', deal),
-        pctField('Rate after (SVR)', 'm-svr', m, 'svr')),
-      el('hr'),
-      el('h3', null, 'Overpayments'),
+      el('h3', null, MP.term('overpayment', 'Overpayments')),
       moneyField('Extra each month', 'm-over', m, 'over'),
-      moneyField('One-off lump sum now', 'm-lump', m, 'lump'),
-      pctField('Overpayment allowance a year (%)', 'm-allow', m, 'allow', 'Most deals let you overpay 10% of the balance a year without an early repayment charge. Check your offer.'));
+      ex('overpayment', 'ex-over'),
+      detailOnly(moneyField('One-off lump sum now', 'm-lump', m, 'lump')),
+      detailOnly(pctField('Overpayment allowance a year (%)', 'm-allow', m, 'allow', 'Most deals let you overpay 10% of the balance a year without an early repayment charge. Check your offer.')),
+      detailOnly(ex('erc', 'ex-erc')));
   }
 
   function mortgageResults() {
@@ -260,6 +279,12 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       return;
     }
     var interestOnly = m.type === 'interest';
+    var hidden = [];
+    if (interestOnly) hidden.push('an interest-only mortgage');
+    if ((+m.lump || 0) > 0) hidden.push('a lump sum of ' + MP.money(+m.lump));
+    if ((+m.allow || 0) !== 10) hidden.push('an overpayment allowance of ' + (+m.allow || 0) + '%');
+    var note = hiddenNote(hidden, 'm-hidden-note');
+    if (note) results.appendChild(note);
     var card = el('section', { class: 'card', 'aria-labelledby': 'h-m-out' }, el('h2', { id: 'h-m-out' }, 'Your payments'),
       el('div', { class: 'stats' },
         stat(interestOnly ? 'Monthly payment (interest only)' : 'Monthly payment', MP.money(base.firstPayment, true), 'm-payment', base.firstPayment.toFixed(2), 'big'),
@@ -300,11 +325,11 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     if (hasOver) series.push({ name: 'Balance with overpayments', color: '--c2', values: pad(withO.yearly) });
     var dm = monthsUntil(m.dealEnd);
     var opts = { series: series, labels: labels, label: 'Mortgage balance over time' };
-    if (dm != null && dm > 0 && dm / 12 < years - 1) opts.marker = { index: dm / 12, label: 'Deal ends' };
+    if (MP.isDetailed() && dm != null && dm > 0 && dm / 12 < years - 1) opts.marker = { index: dm / 12, label: 'Deal ends' };
     results.appendChild(el('section', { class: 'card', 'aria-labelledby': 'h-m-chart' }, el('h2', { id: 'h-m-chart' }, 'Balance over time'), chart(opts)));
 
     // deal end
-    var dealBox = el('section', { class: 'card', 'aria-labelledby': 'h-m-deal' }, el('h2', { id: 'h-m-deal' }, 'When your deal ends'));
+    var dealBox = el('section', { class: 'card detail-only', id: 'm-deal-card', 'aria-labelledby': 'h-m-deal' }, el('h2', { id: 'h-m-deal' }, 'When your deal ends'));
     if (dm == null || !m.dealEnd) {
       dealBox.appendChild(el('p', { class: 'muted' }, 'Add the date your current deal ends to see what could happen to your payment.'));
     } else {
@@ -327,6 +352,7 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       }
     }
     results.appendChild(dealBox);
+    results.appendChild(advice('mortgage', 'm-advice'));
   }
 
   /* ================= 2. buying a home ================= */
@@ -341,12 +367,13 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       el('h2', { id: 'h-b-in' }, 'The home you want'),
       moneyField('Property price', 'b-price', b, 'price'),
       moneyField('Your deposit', 'b-deposit', b, 'deposit'),
+      ex('ltv', 'ex-ltv'),
       el('div', { class: 'field' }, el('span', { class: 'label' }, 'Who is buying?'), buyer,
         el('span', { class: 'hint' }, 'First home: you have never owned a home anywhere. Extra property: you will own more than one, like a buy-to-let or second home.')),
       el('hr'),
       el('h3', null, 'Your income'),
       moneyField('Your yearly salary (before tax)', 'b-income1', b, 'income1', 'Filled in from About you on the home page.'),
-      moneyField('Second buyer\'s salary (optional)', 'b-income2', b, 'income2'),
+      detailOnly(moneyField('Second buyer\'s salary (optional)', 'b-income2', b, 'income2', 'From About you if you gave a partner\'s salary in the guided setup.')),
       el('hr'),
       el('h3', null, 'Mortgage estimate'),
       el('div', { class: 'grid-2 tight' }, pctField('Interest rate (%)', 'b-rate', b, 'rate'), MP.field('Term (years)', years)));
@@ -362,6 +389,8 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     var n = Math.round((+b.years || 0) * 12);
     var pay = payment(loan, +b.rate || 0, n), stress = payment(loan, (+b.rate || 0) + 3, n);
     var tax = sdlt(price, b.buyer);
+    var bNote = hiddenNote((+b.income2 || 0) > 0 ? ['a second buyer\'s salary of ' + MP.money(+b.income2)] : [], 'b-hidden-note');
+    if (bNote && price > 0) results.appendChild(bNote);
 
     if (price <= 0) {
       results.appendChild(el('div', { class: 'card' }, el('p', { class: 'muted' }, 'Enter a property price to see what you could borrow and the Stamp Duty.')));
@@ -378,9 +407,9 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     results.appendChild(el('section', { class: 'card', 'aria-labelledby': 'h-b-borrow' }, el('h2', { id: 'h-b-borrow' }, 'What you would borrow'),
       el('div', { class: 'stats' },
         stat('Mortgage needed', MP.money(loan), 'b-loan', Math.round(loan), 'big'),
-        stat('Loan to value (LTV)', MP.pct(ltv, 1), 'b-ltv', ltv.toFixed(4)),
+        stat(el('span', null, MP.term('ltv', 'Loan to value'), ' (LTV)'), MP.pct(ltv, 1), 'b-ltv', ltv.toFixed(4), null, 'detail-only'),
         stat('Deposit (' + MP.pct(price ? deposit / price : 0, 1) + ')', MP.money(deposit), 'b-dep-pct')),
-      el('p', { class: 'small', style: { marginTop: '10px' } }, el('span', { class: 'chip ' + ltvBand }, 'LTV ' + MP.pct(ltv, 0)), ' ',
+      el('p', { class: 'small detail-only', id: 'b-ltv-note', style: { marginTop: '10px' } }, el('span', { class: 'chip ' + ltvBand }, 'LTV ' + MP.pct(ltv, 0)), ' ',
         ltv > 0.95 ? 'Very few lenders go above 95%. Saving a bigger deposit opens up more deals.' :
           ltv > 0.9 ? 'At 90% to 95% LTV there are fewer deals and higher rates.' :
             ltv > 0.75 ? 'Rates usually get better at 75%, 60% LTV and below.' : 'A low LTV usually gets you the best rates.'),
@@ -391,7 +420,7 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       el('p', { class: 'tiny muted' }, 'Lenders decide how much to lend after checking your income, spending, debts and credit history. This is only a rough guide.')));
 
     // Stamp Duty
-    var taxCard = el('section', { class: 'card', 'aria-labelledby': 'h-b-tax' }, el('h2', { id: 'h-b-tax' }, 'Stamp Duty (England and Northern Ireland)'));
+    var taxCard = el('section', { class: 'card', 'aria-labelledby': 'h-b-tax' }, el('h2', { id: 'h-b-tax' }, MP.term('stamp-duty'), ' (England and Northern Ireland)'), ex('stamp-duty', 'ex-sdlt'));
     if (region === 'scotland' || region === 'wales') {
       taxCard.appendChild(el('div', { class: 'callout warning', id: 'b-region-note' }, el('p', null, 'Your profile says you live in ' + (region === 'scotland' ? 'Scotland' : 'Wales') + '. Homes there pay ' +
         (region === 'scotland' ? 'Land and Buildings Transaction Tax (LBTT), set by Revenue Scotland' : 'Land Transaction Tax (LTT), set by the Welsh Revenue Authority') +
@@ -401,7 +430,7 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       stat('Stamp Duty to pay', MP.money(tax.tax), 'b-sdlt', Math.round(tax.tax), 'big'),
       stat('Effective rate', MP.pct(price ? tax.tax / price : 0, 2), 'b-sdlt-rate')));
     if (tax.parts.length) {
-      taxCard.appendChild(el('div', { class: 'scroll-x', style: { marginTop: '12px' } }, el('table', { class: 'table small' },
+      taxCard.appendChild(el('div', { class: 'scroll-x detail-only', id: 'b-sdlt-table', style: { marginTop: '12px' } }, el('table', { class: 'table small' },
         el('thead', null, el('tr', null, el('th', null, 'Part of the price'), el('th', { class: 'num' }, 'Rate'), el('th', { class: 'num' }, 'Tax'))),
         el('tbody', null, tax.parts.map(function (p) {
           return el('tr', null, el('td', null, MP.money(p.from) + ' to ' + MP.money(p.to)), el('td', { class: 'num' }, MP.pct(p.rate, 0)), el('td', { class: 'num' }, MP.money(p.tax)));
@@ -420,10 +449,12 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     results.appendChild(el('section', { class: 'card', 'aria-labelledby': 'h-b-pay' }, el('h2', { id: 'h-b-pay' }, 'Monthly payment'),
       el('div', { class: 'stats' },
         stat('At ' + (+b.rate || 0) + '% over ' + (+b.years || 0) + ' years', MP.money(pay, true), 'b-monthly', pay.toFixed(2), 'big'),
-        stat('If rates rise 3% (to ' + ((+b.rate || 0) + 3).toFixed(2).replace(/\.?0+$/, '') + '%)', MP.money(stress, true), 'b-stress', stress.toFixed(2), 'neg')),
-      netM > 0 ? el('p', { class: 'small', style: { marginTop: '10px' } }, 'That is ' + MP.pct(pay / netM, 0) + ' of your estimated take-home pay of ' + MP.money(netM) + ' a month, or ' +
-        MP.pct(stress / netM, 0) + ' if rates rise. ' + (stress / netM > 0.45 ? 'That would be a stretch: lenders test that you could still pay at higher rates.' : '')) : null,
+        stat('If rates rise 3% (to ' + ((+b.rate || 0) + 3).toFixed(2).replace(/\.?0+$/, '') + '%)', MP.money(stress, true), 'b-stress', stress.toFixed(2), 'neg', 'detail-only')),
+      netM > 0 ? el('p', { class: 'small', style: { marginTop: '10px' } }, 'That is ' + MP.pct(pay / netM, 0) + ' of your estimated take-home pay of ' + MP.money(netM) + ' a month',
+        el('span', { class: 'detail-only' }, ', or ' + MP.pct(stress / netM, 0) + ' if rates rise. ' + (stress / netM > 0.45 ? 'That would be a stretch: lenders test that you could still pay at higher rates.' : '')),
+        el('span', { class: 'simple-only' }, '.')) : null,
       el('p', { class: 'small', style: { marginTop: '6px' } }, 'Money you need upfront: ', el('strong', { id: 'b-upfront' }, MP.money(deposit + tax.tax)), ' (deposit and Stamp Duty), plus legal fees, surveys and moving costs, often £2,000 to £4,000.')));
+    results.appendChild(advice('mortgage', 'b-advice'));
   }
 
   /* ================= 3. debts ================= */
@@ -449,7 +480,8 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     bind(extra.input, settings, 'extra', { max: 1e7 });
     return el('section', { class: 'card', 'aria-labelledby': 'h-d-in' },
       el('h2', { id: 'h-d-in' }, 'Your debts'),
-      el('p', { class: 'small muted' }, 'Cards, loans, overdraft, buy now pay later, car finance. Leave out your mortgage.'),
+      el('p', { class: 'small muted' }, 'Cards, loans, overdraft, buy now pay later, car finance. Leave out your mortgage. For each one, enter the balance, the ', MP.term('apr', 'APR'), ' and the minimum payment.'),
+      ex('apr', 'ex-apr'),
       list,
       el('button', { class: 'btn btn-sm', type: 'button', id: 'debt-add', style: { marginTop: '10px' }, onclick: function () {
         settings.debts.push({ id: MP.uid(), name: 'Debt ' + (settings.debts.length + 1), balance: 1000, apr: 20, min: 30 });
@@ -460,11 +492,24 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       MP.field('Extra you can pay each month', extra.wrap, 'On top of all the minimum payments. Even a small amount helps.'));
   }
 
+  function behindCallout() {
+    return el('section', { class: 'callout danger', id: 'debt-behind', 'aria-labelledby': 'h-d-behind' },
+      el('h2', { id: 'h-d-behind', style: { fontSize: '1.1rem' } }, 'You said you are behind on some payments'),
+      el('p', null, 'You are not alone, and it can be sorted. ', el('strong', null, 'Deal with priority debts first: '),
+        'rent or mortgage, council tax, gas and electricity, TV licence, court fines and child maintenance. Missing these can lead to losing your home, your energy supply or court action. ' +
+        'Cards, loans, overdrafts and buy now pay later come after them, even if those lenders chase you harder.'),
+      el('p', null, 'Contact free debt advice today. They can often ask lenders to freeze interest and charges, set up affordable payments, and tell you about Breathing Space, which pauses most interest and enforcement for 60 days.'),
+      MP.adviceCard('debt'));
+  }
+
   function debtResults() {
     results.innerHTML = '';
+    var behind = (MP.prefs().answers || {}).debtFeel === 'behind';
+    if (behind) results.appendChild(behindCallout());
     var ds = settings.debts.filter(function (d) { return (+d.balance || 0) > 0; });
     if (!ds.length) {
       results.appendChild(el('div', { class: 'card', id: 'debt-empty' }, el('h2', null, 'No debts to show'), el('p', { class: 'muted' }, 'Add a debt with a balance to compare ways to pay it off. Debt-free already? Well done!')));
+      if (!behind) results.appendChild(advice('debt', 'd-advice'));
       return;
     }
     var total = ds.reduce(function (a, d) { return a + (+d.balance || 0); }, 0);
@@ -481,15 +526,17 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
     }
 
     function col(name, r, prefix, best) {
-      return el('section', { class: 'card method' + (best ? ' best' : ''), 'aria-labelledby': 'h-' + prefix },
-        el('div', { class: 'method-head' }, el('h3', { id: 'h-' + prefix, style: { margin: 0 } }, name), best ? el('span', { class: 'chip success' }, 'Least interest') : null),
+      return el('section', { class: 'card method' + (best ? ' best' : '') + (prefix === 'sb' ? ' detail-only' : ''), id: 'method-' + prefix, 'aria-labelledby': 'h-' + prefix },
+        el('div', { class: 'method-head' }, el('h3', { id: 'h-' + prefix, style: { margin: 0 } }, prefix === 'av' ? el('span', null, el('span', { class: 'simple-only' }, 'Recommended: '), name) : name),
+          best ? el('span', { class: 'chip success detail-only' }, 'Least interest') : null,
+          prefix === 'av' && r.done ? el('span', { class: 'chip success simple-only' }, 'Saves the most') : null),
         el('p', { class: 'small muted' }, prefix === 'av' ? 'Pay the highest interest rate first. Saves the most money.' : 'Pay the smallest balance first. Quick wins keep you going.'),
         r.done ? el('div', { class: 'stats two' },
           stat('Debt-free by', monYear(monthsFromNow(r.months)), prefix + '-date'),
           stat('Takes', dur(r.months), prefix + '-months', r.months),
           stat('Total interest', MP.money(r.interest), prefix + '-interest', r.interest.toFixed(2))) :
           el('p', { class: 'callout danger', id: prefix + '-never' }, 'Never paid off at this rate. Pay more each month or talk to a free debt adviser.'),
-        r.done ? el('ol', { class: 'payoff small', id: prefix + '-order' }, r.order.map(function (d) {
+        r.done ? el('ol', { class: 'payoff small detail-only', id: prefix + '-order' }, r.order.map(function (d) {
           return el('li', null, el('span', null, d.name), el('span', { class: 'muted' }, d.paid != null ? monYear(monthsFromNow(d.paid)) : '—'));
         })) : null);
     }
@@ -498,16 +545,17 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       el('div', { class: 'stats' },
         stat('Total debt', MP.money(total), 'debt-total', Math.round(total), 'big'),
         stat('Paying each month', MP.money(av.budget), 'debt-budget', Math.round(av.budget))),
-      mins.done && av.done && settings.extra > 0 ? el('p', { class: 'small', style: { marginTop: '10px' } }, 'Paying minimums only would take ' + dur(mins.months) + ' and cost ' + MP.money(mins.interest) +
+      mins.done && av.done && settings.extra > 0 ? el('p', { class: 'small detail-only', id: 'debt-mins', style: { marginTop: '10px' } }, 'Paying minimums only would take ' + dur(mins.months) + ' and cost ' + MP.money(mins.interest) +
         ' in interest. Your extra ' + MP.money(settings.extra) + ' a month saves ' + MP.money(mins.interest - av.interest) + ' and ' + dur(mins.months - av.months) + '.') :
-        !mins.done && av.done ? el('p', { class: 'small', style: { marginTop: '10px' } }, 'On minimum payments only you would never clear these debts. Your extra payment makes the difference.') : null,
+        !mins.done && av.done ? el('p', { class: 'small detail-only', id: 'debt-mins', style: { marginTop: '10px' } }, 'On minimum payments only you would never clear these debts. Your extra payment makes the difference.') : null,
       el('p', { class: 'tiny muted', style: { marginTop: '8px' } }, 'Assumes rates and minimum payments stay the same, no new spending, and that you keep paying the same total each month. When a debt is cleared, its payment moves on to the next one.')));
 
-    results.appendChild(el('div', { class: 'grid-2' }, col('Avalanche', av, 'av', avBest), col('Snowball', sb, 'sb', !avBest && sb.done)));
+    results.appendChild(el('div', { class: 'grid-2 methods' }, col('Avalanche', av, 'av', avBest), col('Snowball', sb, 'sb', !avBest && sb.done)));
 
     // chart: total balance over time (yearly points, or quarterly if short)
-    if (av.done || sb.done) {
-      var len = Math.max(av.done ? av.months : 0, sb.done ? sb.months : 0, 1);
+    var detailed = MP.isDetailed();
+    if (detailed ? av.done || sb.done : av.done) {
+      var len = Math.max(av.done ? av.months : 0, detailed && sb.done ? sb.months : 0, 1);
       var step = len <= 36 ? 3 : len <= 120 ? 12 : 24;
       var labels = [], a = [], s = [];
       for (var k = 0; k <= len + step - 1; k += step) {
@@ -517,7 +565,8 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
         if (mm === len) break;
       }
       results.appendChild(el('section', { class: 'card', 'aria-labelledby': 'h-d-chart' }, el('h2', { id: 'h-d-chart' }, 'Total debt over time'),
-        chart({ series: [{ name: 'Avalanche', color: '--c2', values: a, area: true }, { name: 'Snowball', color: '--c3', values: s, dash: true }], labels: labels, label: 'Total debt over time, avalanche and snowball' })));
+        chart({ series: [{ name: 'Avalanche', color: '--c2', values: a, area: true }].concat(detailed ? [{ name: 'Snowball', color: '--c3', values: s, dash: true }] : []), labels: labels,
+          label: detailed ? 'Total debt over time, avalanche and snowball' : 'Total debt over time on the avalanche plan' })));
     }
 
     // save as a dream
@@ -534,6 +583,7 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
       MP.toast(isNew ? 'Saved to your dreams.' : 'Your "Be debt-free" dream is updated.');
     } }, '🧹 Save as a dream: Be debt-free');
     results.appendChild(el('div', { class: 'card row' }, dreamBtn, el('span', { class: 'small muted' }, av.done ? 'Adds it to Dreams & goals with your avalanche date.' : 'Make a plan that clears your debts first.')));
+    if (!behind) results.appendChild(advice('debt', 'd-advice'));
   }
 
   /* ================= common ================= */
@@ -578,6 +628,7 @@ MP.page({ id: 'debt', title: 'Mortgage & debt' }).then(function () {
   }
 
   MP.onTheme(function () { renderResults(); });
+  MP.onPrefs(function () { renderResults(); });
   var narrow = window.innerWidth < 600, rt;
   window.addEventListener('resize', function () {
     clearTimeout(rt);

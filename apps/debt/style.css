@@ -31,3 +31,9 @@ label.sub { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .payoff li::after { content: ""; display: block; clear: both; }
 .tips li + li { margin-top: 6px; }
 @media (max-width: 480px) { .tabs { gap: 0; } .tabs button { padding-inline: 8px; font-size: .95rem; } }
+/* Simple view hides the snowball column, so the recommended plan uses the full width. */
+:root[data-detail="simple"] .methods { grid-template-columns: 1fr; }
+.callout .btn-ghost { margin-inline-start: 4px; min-height: 36px; }
+#debt-behind { border-inline-start-width: 6px; }
+#debt-behind .advice-card { background: var(--surface); margin-top: 8px; }
+.field > label .term-wrap { font-weight: 600; }

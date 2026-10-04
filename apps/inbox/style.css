@@ -59,3 +59,13 @@ details.card h3 { margin-top: 12px; }
   .bill-amt { flex-direction: row; align-items: center; gap: 10px; }
   .remove-bill { margin-inline-start: auto; }
 }
+
+/* personalisation */
+.fact-freq { display: contents; }
+:root[data-detail="simple"] .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 640px) { :root[data-detail="simple"] .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.debt-help { border-color: var(--warning); margin-bottom: 16px; }
+.debt-help .advice-card { margin-top: 10px; }
+.debt-flag { margin: 10px 0 0; }
+.extras .term-wrap { display: inline; }
+.mail-list + .explain, #panel > .explain { margin-top: 0; }

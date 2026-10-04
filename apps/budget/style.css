@@ -88,3 +88,9 @@
 
 /* shared .btn:hover turns .btn-accent pale with white text; keep it readable */
 #insights .btn-accent:hover { background: color-mix(in srgb, var(--accent) 85%, #000); border-color: var(--accent); }
+
+/* personalisation: in Simple the category filter is hidden, so search takes the full row */
+:root[data-detail="simple"] .bd-filters { grid-template-columns: 1fr; }
+#leftover-intro h2 { color: var(--text); }
+.bd-cut { list-style: '✂️ '; }
+section#budget-advice .advice-card { margin-top: 10px; }

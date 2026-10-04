@@ -10,6 +10,10 @@ module.exports = async ({ page, expect, ROOT }) => {
   expect(unit.q === 'Café bill £12 £5' && unit.b === '£40 – due', 'RFC 2047 encoded words decode, got ' + unit.q + ' / ' + unit.b);
   expect(unit.html === 'Total due:\n£9.99', 'HTML is turned into text, got ' + JSON.stringify(unit.html));
 
+  const visible = (sel) => page.locator(sel).first().isVisible();
+  expect(await page.evaluate(() => document.documentElement.dataset.detail) === 'simple', 'new accounts start in Simple mode');
+  expect(await visible('#h-add ~ .explain'), 'beginner sees what an .eml file is');
+
   // import a real .eml file (multipart/alternative, quoted-printable, base64 encoded-word subject)
   const fixture = path.join(ROOT, 'tests/fixtures/inbox/home-renewal.eml');
   const [fc] = await Promise.all([page.waitForEvent('filechooser'), page.click('#import-files')]);
@@ -21,6 +25,10 @@ module.exports = async ({ page, expect, ROOT }) => {
   expect((await card.locator('.item-due').innerText()).includes('15 Mar 2030'), 'renewal date 15 March 2030 extracted');
   expect((await card.getAttribute('data-type')) === 'renewal', 'classified as a renewal');
   expect(/Was £351\.20/.test(await card.innerText()), 'last year\'s premium shown as a price rise');
+  // Simple: amount, due date and actions show; the kept text and frequency are Detailed-only
+  expect(await card.locator('.add-bill').isVisible() && await card.locator('.item-amount').isVisible(), 'Simple shows amount and actions');
+  expect(!(await card.locator('.snippet').isVisible()) && !(await card.locator('.item-freq').isVisible()), 'kept text and frequency hidden in Simple');
+  expect(await visible('#panel > .explain'), 'renewal / loyalty penalty explained for beginners');
 
   // paste a plain-text bill
   await page.fill('#paste-text', 'From: Riverside Water <bills@riversidewater.example>\nSubject: Your water bill\n\nHello Priya,\nYour bill is ready.\nAmount due: £86.50\nPlease pay by 20/11/2030.\nRiverside Water');
@@ -45,6 +53,13 @@ module.exports = async ({ page, expect, ROOT }) => {
   expect(g && g.target === 640 && Math.abs(g.monthly - 128) < 0.01 && g.icon === '🧾', 'goal created at £128 a month, got ' + JSON.stringify(g));
   expect(/£128\.00/.test(await page.locator('#item-list .mail-item', { hasText: 'Brightside' }).locator('.plan-monthly').innerText()), 'plan shown on the card');
 
+  // Detailed view shows the extras
+  await page.click('#mp-detail-detailed');
+  await page.waitForSelector('#item-list .mail-item .snippet', { state: 'visible' });
+  expect(await page.locator('#item-list .mail-item .item-freq').first().isVisible(), 'frequency visible after switching to Detailed');
+  const meridian = page.locator('#item-list .mail-item', { hasText: 'Meridian' });
+  expect(/24\.9% APR/.test(await meridian.innerText()), 'APR shown in Detailed');
+
   // edit then add to bills: change the water bill to £90 every 3 months, due in 10 days
   await page.locator('#item-list .mail-item', { hasText: 'Your water bill' }).locator('.edit-item').click();
   await page.selectOption('#e-freq', 'quarterly');
@@ -62,6 +77,13 @@ module.exports = async ({ page, expect, ROOT }) => {
   // £640 once + £90 every 3 months (4 times in the next 12 months)
   expect(yearTotal === 1000, 'yearly total £1,000, got ' + yearTotal);
 
+  // Simple keeps the 12-month total and list, hides the chart and month by month
+  await page.click('#mp-detail-simple');
+  expect(await visible('#year-total') && await visible('#bill-list'), 'Simple keeps the total and the list');
+  expect(!(await visible('.bill-chart')) && !(await visible('#months-card')), 'chart and month by month hidden in Simple');
+  await page.click('#mp-detail-detailed');
+  expect(await visible('.bill-chart') && await visible('#months-card'), 'chart visible in Detailed');
+
   // dismiss the scam
   await page.click('#tab-found');
   await page.locator('#item-list .mail-item.is-scam .dismiss-item').click();
@@ -78,4 +100,19 @@ module.exports = async ({ page, expect, ROOT }) => {
   expect((await page.locator('#item-list .mail-item').count()) === 6, 'messages survive reload');
   const summary = await page.evaluate(() => MP.get('summaries.inbox'));
   expect(summary && /due in the next 30 days/.test(summary.text), 'home summary set, got ' + JSON.stringify(summary));
+
+  // no debt letters so far: no debt help card
+  expect((await page.locator('#debt-help').count()) === 0, 'no debt card without arrears letters');
+  // an arrears letter brings up free debt advice
+  await page.fill('#paste-text', 'From: Lakeside Loans <collections@lakesideloans.example>\nSubject: Your account is in arrears\n\nDear Priya,\nWe have not received your last two payments and your account is now in arrears of £312.40.\nPlease pay by 30/11/2030 or call us to agree a plan. If we do not hear from you, we may pass your account to a debt collection agency.\nLakeside Loans');
+  await page.click('#paste-read');
+  await page.waitForSelector('#debt-help');
+  expect(/Free debt help/.test(await page.innerText('#debt-help')) && /StepChange/.test(await page.innerText('#debt-help')), 'debt advice card shown for an arrears letter');
+  expect((await page.locator('#item-list .mail-item .debt-flag').count()) === 1, 'the arrears letter is flagged');
+
+  // confident customers do not see the 💡 explanations
+  expect(await visible('.glance + .explain'), 'scam explanation visible for beginners');
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'confident' }));
+  expect(!(await visible('.glance + .explain')) && !(await visible('#h-add ~ .explain')), 'explanations hidden for confident customers');
+  await page.evaluate(() => MP.setPrefs({ knowledge: '' }));
 };

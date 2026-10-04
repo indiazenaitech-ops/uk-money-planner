@@ -1,8 +1,11 @@
 module.exports = async ({ page, expect }) => {
   const money = async (sel) => Number((await page.innerText(sel)).replace(/[^0-9.\-]/g, ''));
 
-  // 1. Emergency fund: target = sum of costs × months
+  // 0. new accounts start in Simple view, as a beginner
   await page.waitForSelector('#ef-target');
+  expect(await page.locator('#sv-panel .explain').first().isVisible(), 'beginners see a 💡 explanation');
+
+  // 1. Emergency fund: target = sum of costs × months
   const keys = ['rent', 'council', 'energy', 'food', 'transport', 'insurance', 'phone', 'childcare', 'other'];
   const vals = [800, 150, 150, 300, 100, 50, 50, 0, 0];
   for (let i = 0; i < keys.length; i++) await page.fill('#ef-' + keys[i], String(vals[i]));
@@ -21,6 +24,30 @@ module.exports = async ({ page, expect }) => {
 
   // 2. ISA allowance: £5,000 cash + £3,000 S&S leaves £12,000
   await page.click('#tab-isa');
+  expect(!(await page.isVisible('#isa-date')), 'Simple view hides the deposit date');
+  await page.selectOption('#isa-type', 'cash');
+  await page.fill('#isa-amount', '1000');
+  await page.click('#isa-add');
+  expect((await money('#isa-used')) === 1000, 'Simple view records a deposit dated today');
+  await page.locator('#isa-list tbody tr').first().locator('.isa-del').click();
+  expect((await money('#isa-used')) === 0, 'deleting it clears the allowance used');
+
+  // Growth in Simple: one account and a headline figure
+  await page.click('#tab-growth');
+  expect(await page.isVisible('#gr-simple-balance') && !(await page.isVisible('#gr-table')) && !(await page.isVisible('#gr-salary')), 'Simple growth shows the headline only');
+  expect(await page.isVisible('#gr-start-0') && !(await page.isVisible('#gr-start-1')), 'Simple growth shows one account');
+  await page.fill('#gr-rate-0', '0');
+  await page.fill('#gr-start-0', '1000');
+  await page.fill('#gr-monthly-0', '100');
+  await page.fill('#gr-years', '2');
+  expect((await money('#gr-simple-balance')) === 3400, 'Simple headline: £1,000 + 24×£100 at 0% = £3,400, got ' + (await page.innerText('#gr-simple-balance')));
+  expect((await page.locator('#sv-panel .advice-card').count()) === 1, 'advice card on the Growth tab');
+
+  // switch to Detailed for the advanced inputs
+  await page.click('#mp-detail-detailed');
+  await page.click('#tab-isa');
+  await page.waitForSelector('#isa-date', { state: 'visible' });
+  expect(await page.isVisible('#isa-date'), 'Detailed view shows the deposit date');
   await page.selectOption('#isa-type', 'cash');
   await page.fill('#isa-amount', '5000');
   await page.click('#isa-add');
@@ -63,6 +90,14 @@ module.exports = async ({ page, expect }) => {
   await page.fill('#lisa-price', '500000');
   expect(await page.isVisible('#lisa-price-warn'), 'warns when home is over £450,000');
   await page.fill('#lisa-price', '300000');
+  expect(await page.isVisible('#lisa-rate'), 'Detailed LISA shows the growth rate');
+
+  // confident customers do not see the 💡 lines
+  expect(await page.locator('#sv-panel .explain').first().isVisible(), 'LISA explanation visible to a beginner');
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'confident' }));
+  await page.waitForTimeout(100);
+  expect((await page.locator('.explain:visible').count()) === 0, 'explanations hidden for confident customers');
+  await page.evaluate(() => MP.setPrefs({ knowledge: '' }));
 
   // persistence after reload: remembers the LISA tab and the ISA deposits
   await page.waitForTimeout(600);
@@ -73,5 +108,17 @@ module.exports = async ({ page, expect }) => {
   expect((await money('#isa-remaining')) === 12000, 'ISA deposits survive reload');
   const summary = await page.evaluate(() => MP.get('summaries.savings').text);
   expect(/ISA: £8,000 of £20,000 used/.test(summary), 'home summary shows ISA use, got ' + summary);
+  await page.click('#tab-emergency');
+
+  // prefill from the guided setup after a reset: £1,500 of bills, 2 months saved
+  await page.evaluate(() => MP.setPrefs({ answers: { essentialCosts: 1500, savingsMonths: '2', homeFirst: 'no' } }));
+  await page.click('#sv-reset');
+  await page.waitForSelector('#ef-guide-note');
+  expect((await page.inputValue('#ef-current')) === '3000', 'current savings prefilled as £1,500 × 2');
+  expect((await money('#ef-target')) === 9000, 'target from guided costs: £1,500 × 6 = £9,000, got ' + (await page.innerText('#ef-target')));
+  await page.click('#tab-lisa');
+  expect(!(await page.isChecked('#lisa-first')), 'first-time buyer unticked from the guided setup');
+  expect(await page.isVisible('#lisa-guide-note'), 'LISA shows the guided-setup note');
+  await page.evaluate(() => MP.setPrefs({ answers: {}, detail: 'simple' }));
   await page.click('#tab-emergency');
 };

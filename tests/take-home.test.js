@@ -3,6 +3,35 @@ module.exports = async ({ page, expect }) => {
   const set = async (sel, v) => { await page.fill(sel, String(v)); await page.waitForTimeout(80); };
 
   await page.waitForSelector('#pay-table');
+  const vis = (sel) => page.locator(sel).first().isVisible();
+
+  // --- Simple view (the default for new accounts): essentials only, still correct ---
+  expect((await page.getAttribute('html', 'data-detail')) === 'simple', 'new accounts start in Simple view');
+  expect(!(await vis('#pension-method')) && !(await vis('#tax-code')), 'pension method and tax code hidden in Simple');
+  expect(await vis('#pay') && await vis('#pension-pct') && await vis('#loan-plan2'), 'salary, pension % and student loans shown in Simple');
+  await page.click('#period button[data-value="year"]');
+  await page.click('#region button[data-value="ruk"]');
+  await set('#pay', 30000);
+  await set('#pension-pct', 0);
+  expect((await txt('#takehome-year')) === '£25,120', 'Simple headline take-home £25,120 a year, got ' + (await txt('#takehome-year')));
+  expect((await txt('#takehome-month')) === '£2,093.30', 'Simple headline £2,093.30 a month, got ' + (await txt('#takehome-month')));
+  expect(await vis('#y-takehome') && !(await vis('#w-takehome')) && !(await vis('#marginal')), 'Simple keeps the yearly/monthly table, hides weekly column and marginal rate');
+  expect((await page.locator('#pay-table tr.band').count()) > 0 && !(await vis('#pay-table tr.band')), 'tax-by-band rows hidden in Simple');
+  expect(await vis('#ex-allowance'), 'beginner sees the Personal Allowance explanation');
+  // the tax advice card: Detailed-only at £30,000, always shown over £100,000
+  expect((await page.locator('#th-advice').count()) === 1 && !(await vis('#th-advice')), 'tax advice card is Detailed-only at £30,000');
+  await set('#pay', 120000);
+  expect(await vis('#th-advice'), 'tax advice card shown in Simple above £100,000');
+  await set('#pay', 30000);
+  // knowledge: confident users do not see 💡 lines
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'confident' }));
+  expect(!(await vis('#ex-allowance')), 'explanation hidden for confident users');
+  await page.evaluate(() => MP.setPrefs({ knowledge: 'new' }));
+  // switch live to Detailed
+  await page.click('#mp-detail-detailed');
+  expect(await vis('#pension-method') && await vis('#w-takehome') && await vis('#marginal'), 'Detailed shows pension method, weekly column and marginal rate');
+  expect(await vis('#th-advice'), 'tax advice card shown in Detailed');
+
   // £30,000 a year, England, no pension, no loan
   await page.click('#period button[data-value="year"]');
   await page.click('#region button[data-value="ruk"]');

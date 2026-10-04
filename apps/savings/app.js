@@ -35,13 +35,14 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     COSTS.forEach(function (c) { costs[c.key] = c.def; });
     return {
       tab: 'emergency',
-      ef: { costs: costs, months: '6', current: 2000, monthly: 250 },
+      ef: { costs: costs, months: '6', current: 2000, monthly: 250, fromGuide: false },
       isa: { deposits: [] },
       growth: { years: 5, salary: null, accounts: [
         { id: MP.uid(), name: 'Easy-access account', start: 5000, monthly: 200, rate: 3.5 },
         { id: MP.uid(), name: 'Regular saver', start: 0, monthly: 200, rate: 5 }
       ] },
-      lisa: { age: null, firstTime: true, price: 250000, contrib: 4000, years: 5, rate: 4, saved: 0 }
+      lisa: { age: null, firstTime: true, price: 250000, contrib: 4000, years: 5, rate: 4, saved: 0, fromGuide: false },
+      prefill: { ef: false, lisa: false }
     };
   }
   function merge(def, v) {
@@ -58,8 +59,37 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
   if (!Array.isArray(state.growth.accounts)) state.growth.accounts = defaults().growth.accounts;
 
   var profile = MP.profile();
-  var profileAge = profile.dob ? UK.age(profile.dob) : null;
+  var answers = MP.prefs().answers || {};
+  var profileDob = profile.dob || answers.dob || '';
+  var profileAge = profileDob ? UK.age(profileDob) : null;
   var profileSalary = +profile.salary || 0;
+
+  /* Prefill from the guided setup, once, and only where the inputs are still at their starting values. */
+  function applyGuide(st) {
+    var d = defaults(), A = MP.prefs().answers || {}, changed = false;
+    var costs = +A.essentialCosts > 0 ? +A.essentialCosts : 0, months = A.savingsMonths != null && A.savingsMonths !== '' ? +A.savingsMonths : null;
+    var efDefault = st.ef.current === d.ef.current && COSTS.every(function (c) { return +st.ef.costs[c.key] === c.def; });
+    if (!st.prefill.ef && efDefault && (costs || months != null)) {
+      if (costs) {
+        // spread the guide's total across the usual cost lines, keeping the same proportions
+        var base = COSTS.reduce(function (a, c) { return a + c.def; }, 0), sum = 0;
+        COSTS.forEach(function (c) { if (c.key !== 'other') { st.ef.costs[c.key] = Math.round(c.def * costs / base); sum += st.ef.costs[c.key]; } });
+        st.ef.costs.other = Math.max(0, Math.round(costs - sum));
+      }
+      var monthCost = COSTS.reduce(function (a, c) { return a + n(st.ef.costs[c.key]); }, 0);
+      if (months != null && isFinite(months)) st.ef.current = Math.round(monthCost * months);
+      st.prefill.ef = true; st.ef.fromGuide = true; changed = true;
+    }
+    if (!st.prefill.lisa && (A.homeFirst || +A.homePrice > 0 || +A.homeWhen > 0)) {
+      if (A.homeFirst && st.lisa.firstTime === d.lisa.firstTime) st.lisa.firstTime = A.homeFirst !== 'no';
+      if (+A.homePrice > 0 && st.lisa.price === d.lisa.price) st.lisa.price = Math.round(+A.homePrice);
+      if (+A.homeWhen > 0 && st.lisa.years === d.lisa.years) st.lisa.years = MP.clamp(Math.round(+A.homeWhen), 1, 30);
+      st.prefill.lisa = true; st.lisa.fromGuide = true; changed = true;
+    }
+    return changed;
+  }
+  if (applyGuide(state)) MP.set('tools.savings', state);
+  function guideNote(id) { return el('p', { class: 'tiny guide-note', id: id }, '✨ Filled in from your guided setup. Change any figure.'); }
 
   /* ---------- helpers ---------- */
   function save() { MP.set('tools.savings', state); saveSummary(); }
@@ -81,6 +111,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     return el('input', Object.assign({ type: 'number', id: id, value: value, inputmode: 'decimal', step: 'any', min: '0' }, attrs || {}));
   }
   function money(id, value, attrs) { return MP.moneyInput(Object.assign({ id: id, value: value }, attrs || {})); }
+  function detailOnly(node) { node.classList.add('detail-only'); return node; }
   function plural(k, word) { return MP.fmtNum(k) + ' ' + word + (k === 1 ? '' : 's'); }
 
   /* ---------- page ---------- */
@@ -127,6 +158,8 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     ({ emergency: emergencyTab, isa: isaTab, growth: growthTab, lisa: lisaTab })[state.tab](panel);
   }
   MP.onTheme(function () { if (redrawChart) redrawChart(); });
+  // the Growth chart and headline depend on Simple/Detailed, and advice cards on the advice preference
+  MP.onPrefs(function () { if (panel) drawPanel(); });
 
   /* ---------- 1. Emergency fund ---------- */
   function efCalc() {
@@ -139,7 +172,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
   }
   function emergencyTab(root) {
     var ef = state.ef, out = el('div', { 'aria-live': 'polite', id: 'ef-result' });
-    function update() { save(); out.innerHTML = ''; out.appendChild(efResult()); }
+    function update() { if (ef.fromGuide) { ef.fromGuide = false; var gn = MP.$('#ef-guide-note'); if (gn) gn.remove(); } save(); out.innerHTML = ''; out.appendChild(efResult()); }
     var costFields = COSTS.map(function (c) {
       var m = money('ef-' + c.key, ef.costs[c.key]);
       m.input.addEventListener('input', function () { ef.costs[c.key] = n(m.input.value); update(); });
@@ -154,7 +187,9 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     root.appendChild(el('div', { class: 'split' },
       el('section', { class: 'card', 'aria-labelledby': 'h-ef-costs' },
         el('h2', { id: 'h-ef-costs' }, 'Your essential monthly costs'),
+        MP.explain('emergency-fund'),
         el('p', { class: 'small muted' }, 'Only the bills you must pay if your income stopped. Leave out treats and subscriptions you could cancel.'),
+        ef.fromGuide ? guideNote('ef-guide-note') : null,
         el('div', { class: 'cost-grid' }, costFields)),
       el('div', { class: 'stack' },
         el('section', { class: 'card', 'aria-labelledby': 'h-ef-plan' },
@@ -166,7 +201,8 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
             MP.field('You can save each month', monthly.wrap)),
           out),
         el('section', { class: 'callout' }, el('p', null, el('strong', null, 'Where to keep it: '),
-          'an easy-access savings account or easy-access cash ISA, separate from your current account, so you can reach it in a day or two but are not tempted to spend it.')))));
+          'an easy-access savings account or easy-access ', MP.term('cash-isa', 'cash ISA'), ', separate from your current account, so you can reach it in a day or two but are not tempted to spend it.'),
+          MP.explain(null, 'Is my money safe? Savings at UK banks and building societies are protected by the FSCS up to £120,000 per person, per banking licence, if the bank fails.')))));
     out.appendChild(efResult());
   }
   function efResult() {
@@ -239,14 +275,15 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
       MP.toast('Deposit added.');
     } },
       el('div', { class: 'grid-2' }, MP.field('Type of ISA', type), MP.field('Amount paid in', amt.wrap)),
-      MP.field('Date paid in', date, 'Tax year ' + ty.label + ' runs from ' + MP.fmtDate(ty.start) + ' to ' + MP.fmtDate(ty.end) + '.'),
+      detailOnly(MP.field('Date paid in', date, 'Tax year ' + ty.label + ' runs from ' + MP.fmtDate(ty.start) + ' to ' + MP.fmtDate(ty.end) + '.')),
+      el('p', { class: 'small muted simple-only' }, 'We record it as paid in today. Switch to Detailed view to choose another date.'),
       err,
       el('button', { class: 'btn btn-primary', type: 'submit', id: 'isa-add' }, '＋ Add deposit'));
 
     root.appendChild(el('div', { class: 'split' },
       el('div', { class: 'stack' },
-        el('section', { class: 'card', 'aria-labelledby': 'h-isa-add' }, el('h2', { id: 'h-isa-add' }, 'Record a payment into an ISA'), form),
-        el('section', { class: 'card', 'aria-labelledby': 'h-isa-rules' }, el('h2', { id: 'h-isa-rules' }, 'The rules in brief'),
+        el('section', { class: 'card', 'aria-labelledby': 'h-isa-add' }, el('h2', { id: 'h-isa-add' }, 'Record a payment into an ', MP.term('isa', 'ISA')), MP.explain('isa'), form),
+        el('section', { class: 'card detail-only', 'aria-labelledby': 'h-isa-rules' }, el('h2', { id: 'h-isa-rules' }, 'The rules in brief'),
           el('ul', { class: 'small tight' },
             el('li', null, 'You can put up to ' + MP.money(ISA.annual) + ' into ISAs each tax year, split across any types.'),
             el('li', null, 'A Lifetime ISA takes up to ' + MP.money(ISA.lifetime) + ' a year, and that counts towards the ' + MP.money(ISA.annual) + '.'),
@@ -275,7 +312,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
         stat('Left to use', 'isa-remaining', MP.money(r.remaining, r.remaining % 1 !== 0), r.over > 0 ? 'neg' : 'pos'),
         stat('Lifetime ISA room', 'isa-lisa-left', MP.money(r.lisaLeft, r.lisaLeft % 1 !== 0)),
         stat('Days left this tax year', 'isa-days', MP.fmtNum(r.daysLeft))),
-      bars.length ? el('ul', { class: 'isa-split', 'aria-label': 'ISA payments by type' }, bars.map(function (b) {
+      bars.length ? el('ul', { class: 'isa-split detail-only', 'aria-label': 'ISA payments by type' }, bars.map(function (b) {
         return el('li', null, el('span', { class: 'isa-split-name' }, el('i', { class: 'dot', style: { background: MP.css(b.color) }, 'aria-hidden': 'true' }), b.label),
           el('strong', null, MP.money(b.value, b.value % 1 !== 0)),
           el('span', { class: 'progress', 'aria-hidden': 'true' }, el('span', { style: { width: MP.clamp(b.value / ISA.annual, 0, 1) * 100 + '%', background: MP.css(b.color) } })));
@@ -333,6 +370,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     sal.input.addEventListener('input', function () { g.salary = n(sal.input.value); update(); });
     function drawAccounts() {
       accBox.innerHTML = '';
+      var simple = !MP.isDetailed();
       g.accounts.forEach(function (a, i) {
         var name = el('input', { type: 'text', id: 'gr-name-' + i, value: a.name, maxlength: 40 });
         var start = money('gr-start-' + i, a.start), monthly = money('gr-monthly-' + i, a.monthly);
@@ -341,23 +379,24 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
         start.input.addEventListener('input', function () { a.start = n(start.input.value); update(); });
         monthly.input.addEventListener('input', function () { a.monthly = n(monthly.input.value); update(); });
         rate.addEventListener('input', function () { a.rate = n(rate.value, 0, 30); update(); });
-        accBox.appendChild(el('fieldset', { class: 'acc', style: { borderInlineStartColor: MP.css(COLORS[i % 4]) } },
-          el('legend', null, 'Account ' + (i + 1)),
-          MP.field('Name', name),
+        accBox.appendChild(el('fieldset', { class: 'acc' + (i > 0 ? ' detail-only' : ''), style: { borderInlineStartColor: MP.css(COLORS[i % 4]) } },
+          el('legend', null, simple && i === 0 ? 'Your savings' : 'Account ' + (i + 1)),
+          detailOnly(MP.field('Name', name)),
           el('div', { class: 'acc-grid' }, MP.field('Start with', start.wrap), MP.field('Add monthly', monthly.wrap), MP.field('Interest (AER %)', rate)),
-          g.accounts.length > 1 ? el('button', { class: 'btn btn-sm btn-ghost', type: 'button', 'aria-label': 'Remove ' + (a.name || 'account ' + (i + 1)), onclick: function () {
+          g.accounts.length > 1 ? el('button', { class: 'btn btn-sm btn-ghost detail-only', type: 'button', 'aria-label': 'Remove ' + (a.name || 'account ' + (i + 1)), onclick: function () {
             g.accounts.splice(i, 1); drawAccounts(); update();
           } }, 'Remove') : null));
       });
-      if (g.accounts.length < 4) accBox.appendChild(el('button', { class: 'btn btn-sm', type: 'button', id: 'gr-add', onclick: function () {
+      if (g.accounts.length < 4) accBox.appendChild(el('button', { class: 'btn btn-sm detail-only', type: 'button', id: 'gr-add', onclick: function () {
         g.accounts.push({ id: MP.uid(), name: 'Account ' + (g.accounts.length + 1), start: 0, monthly: 100, rate: 4 }); drawAccounts(); update();
       } }, '＋ Compare another account'));
     }
     drawAccounts();
     root.appendChild(el('div', { class: 'split' },
-      el('section', { class: 'card', 'aria-labelledby': 'h-gr-in' }, el('h2', { id: 'h-gr-in' }, 'Compare savings accounts'),
+      el('section', { class: 'card', 'aria-labelledby': 'h-gr-in' }, el('h2', { id: 'h-gr-in' }, el('span', { class: 'detail-only' }, 'Compare savings accounts'), el('span', { class: 'simple-only' }, 'How your savings could grow')),
+        el('p', { class: 'small muted' }, 'Use the interest rate shown as the ', MP.term('aer', 'AER'), ' on the account.'),
         MP.field('Years to save', years),
-        MP.field('Your yearly income before tax', sal.wrap, profileSalary ? 'From About you. Change it here to try other figures.' : 'Add your salary in About you on the home page, or type it here.'),
+        detailOnly(MP.field('Your yearly income before tax', sal.wrap, profileSalary ? 'From About you. Change it here to try other figures.' : 'Add your salary in About you on the home page, or type it here.')),
         accBox),
       out));
     update();
@@ -365,20 +404,28 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
   function growthResult() {
     var g = state.growth, years = Math.round(n(g.years, 1, 40)) || 1, sal = salary(), info = savingsTaxInfo(sal);
     var rows = g.accounts.map(function (a) { return { a: a, r: growthCalc(a, years, info) }; });
+    var detailed = MP.isDetailed(), shown = detailed ? rows : rows.slice(0, 1), first = rows[0];
     var bandName = { none: 'below the Personal Allowance', basic: 'a basic-rate taxpayer', higher: 'a higher-rate taxpayer', additional: 'an additional-rate taxpayer' }[info.band];
     var labels = []; for (var y = 0; y <= years; y++) labels.push(y === 0 ? 'Now' : y + 'y');
     function chart() {
       var narrow = main.clientWidth < 560;
       return MP.lineChart({ labels: labels, width: narrow ? 380 : 640, height: narrow ? 240 : 280, label: 'Savings growth over ' + years + ' years',
-        series: rows.map(function (x, i) { return { name: x.a.name || 'Account ' + (i + 1), color: COLORS[i % 4], values: x.r.fv.series.map(function (p) { return p.balance; }), area: rows.length === 1 }; }) });
+        series: shown.map(function (x, i) { return { name: detailed ? (x.a.name || 'Account ' + (i + 1)) : 'Your savings', color: COLORS[i % 4], values: x.r.fv.series.map(function (p) { return p.balance; }), area: shown.length === 1 }; }) });
     }
     var chartBox = el('div', { id: 'gr-chart' }, chart());
     redrawChart = function () { chartBox.innerHTML = ''; chartBox.appendChild(chart()); };
     var best = rows.reduce(function (b, x) { return !b || x.r.fv.balance > b.r.fv.balance ? x : b; }, null);
     var totalTax = rows.reduce(function (s, x) { return s + x.r.tax; }, 0);
+    var headline = first ? el('div', { class: 'simple-only', id: 'gr-headline' },
+      el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Your savings could grow to'), el('span', { class: 'big-number', id: 'gr-simple-balance' }, MP.money(first.r.fv.balance))),
+      el('p', { class: 'small', style: { margin: '6px 0 0' } }, 'You pay in ' + MP.money(first.r.fv.paid) + ' and earn about ' + MP.money(first.r.interest) + ' in interest, if the rate stays at ' + MP.pct(n(first.a.rate, 0, 30) / 100, 2).replace(/(\.\d)0%$/, '$1%') + '.'),
+      MP.explain('compound-interest'),
+      el('p', { class: 'small muted', style: { margin: '6px 0 0' } }, 'You can earn ' + MP.money(info.taxFree) + ' of interest a year tax-free (your ', MP.term('psa', 'Personal Savings Allowance'),
+        ' and other allowances). In an ISA, all of it is tax-free. Switch to Detailed view to compare accounts and see the tax.')) : null;
     return el('div', { class: 'stack' },
       el('section', { class: 'card', 'aria-labelledby': 'h-gr-out' }, el('h2', { id: 'h-gr-out' }, 'After ' + plural(years, 'year')),
-        el('div', { class: 'scroll-x' }, el('table', { class: 'table', id: 'gr-table' },
+        headline,
+        el('div', { class: 'scroll-x detail-only' }, el('table', { class: 'table', id: 'gr-table' },
           el('thead', null, el('tr', null, el('th', null, 'Account'), el('th', { class: 'num' }, 'Final balance'), el('th', { class: 'num' }, 'You paid in'), el('th', { class: 'num' }, 'Interest'), el('th', { class: 'num' }, 'Tax if not in an ISA'))),
           el('tbody', null, rows.map(function (x, i) {
             return el('tr', null,
@@ -388,9 +435,9 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
               el('td', { class: 'num gr-interest pos' }, MP.money(x.r.interest)),
               el('td', { class: 'num gr-tax' + (x.r.tax > 0.5 ? ' neg' : '') }, MP.money(x.r.tax)));
           })))),
-        best && rows.length > 1 ? el('p', { class: 'small muted', style: { margin: '10px 0 0' } }, best.a.name + ' ends highest, assuming the rate stays the same. Rates on most accounts change over time.') : null,
+        best && rows.length > 1 ? el('p', { class: 'small muted detail-only', style: { margin: '10px 0 0' } }, best.a.name + ' ends highest, assuming the rate stays the same. Rates on most accounts change over time.') : null,
         chartBox),
-      el('section', { class: 'card', 'aria-labelledby': 'h-gr-tax' }, el('h2', { id: 'h-gr-tax' }, 'Tax on your interest'),
+      el('section', { class: 'card detail-only', 'aria-labelledby': 'h-gr-tax' }, el('h2', { id: 'h-gr-tax' }, 'Tax on your interest'),
         el('p', null, 'With an income of ' + MP.money(sal) + ' you are ' + bandName + '.'),
         el('div', { class: 'grid-3 stats' },
           stat('Personal Savings Allowance', 'gr-psa', MP.money(info.psa)),
@@ -402,7 +449,8 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
         el('p', { class: 'small muted', style: { marginTop: '12px' } },
           'Interest above your tax-free amount is taxed at ' + MP.pct(info.rate, 0) + '. Each account is worked out on its own, but your allowance covers the interest from all your non-ISA accounts together. ' +
           'The starting rate for savings (up to ' + MP.money(SAV.startingRateBand) + ') only helps if your other income is under ' + MP.money(UK.R.personalAllowance + SAV.startingRateBand) + '. ' +
-          'Savings interest is taxed at these UK rates in Scotland too. We assume your income and the interest rate stay the same.')));
+          'Savings interest is taxed at these UK rates in Scotland too. We assume your income and the interest rate stay the same.')),
+      MP.adviceCard('investments'));
   }
 
   /* ---------- 4. Lifetime ISA ---------- */
@@ -430,7 +478,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     var years = numInput('lisa-years', L.years, { min: '1', max: '30', step: '1', inputmode: 'numeric' });
     var rate = numInput('lisa-rate', L.rate, { step: '0.1', max: '15' });
     var out = el('div', { id: 'lisa-result', 'aria-live': 'polite' });
-    function update() { save(); out.innerHTML = ''; out.appendChild(lisaResult()); }
+    function update(initial) { if (L.fromGuide && initial !== true) { L.fromGuide = false; var gn = MP.$('#lisa-guide-note'); if (gn) gn.remove(); } save(); out.innerHTML = ''; out.appendChild(lisaResult()); }
     ageIn.addEventListener('input', function () { L.age = Math.round(n(ageIn.value, 0, 120)); update(); });
     first.addEventListener('change', function () { L.firstTime = first.checked; update(); });
     price.input.addEventListener('input', function () { L.price = n(price.input.value); update(); });
@@ -440,17 +488,19 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     rate.addEventListener('input', function () { L.rate = n(rate.value, 0, 30); update(); });
     root.appendChild(el('div', { class: 'split' },
       el('section', { class: 'card', 'aria-labelledby': 'h-lisa-in' }, el('h2', { id: 'h-lisa-in' }, 'Saving for your first home'),
+        MP.explain('lisa'),
+        L.fromGuide ? guideNote('lisa-guide-note') : null,
         el('div', { class: 'grid-2' },
           MP.field('Your age', ageIn, profileAge != null ? 'From your date of birth.' : null),
           MP.field('Years until you buy', years)),
         el('label', { class: 'check' }, first, 'I have never owned a home, in the UK or abroad'),
         MP.field('Price of the home you hope to buy', price.wrap, 'Lifetime ISA limit: ' + MP.money(ISA.lifetimeHousePriceCap) + ' anywhere in the UK.'),
         MP.field('You will pay in each year', contrib.wrap, 'Up to ' + MP.money(ISA.lifetime) + ' a year (' + MP.money(ISA.lifetime / 12, true) + ' a month).'),
-        el('div', { class: 'grid-2' },
+        el('div', { class: 'grid-2 detail-only' },
           MP.field('Already in a Lifetime ISA', saved.wrap),
           MP.field('Growth or interest (% a year)', rate, 'Cash or invested; not guaranteed.'))),
       out));
-    update();
+    update(true);
   }
   function lisaResult() {
     var r = lisaCalc(), msgs = [];
@@ -469,7 +519,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
         el('div', { class: 'grid-2' },
           el('div', { class: 'panel lisa-pot' + (eligible ? ' good' : '') }, el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Lifetime ISA, with the bonus'), el('span', { class: 'value big', id: 'lisa-with' }, MP.money(r.withBal)))),
           el('div', { class: 'panel' }, el('div', { class: 'stat' }, el('span', { class: 'label' }, 'Regular saving, same rate'), el('span', { class: 'value big', id: 'lisa-without' }, MP.money(r.withoutBal))))),
-        el('div', { class: 'grid-3 stats', style: { marginTop: '14px' } },
+        el('div', { class: 'grid-3 stats detail-only', style: { marginTop: '14px' } },
           stat('Government bonus each year', 'lisa-bonus-year', MP.money(r.bonusYear), 'pos'),
           stat('Total bonus', 'lisa-bonus-total', MP.money(r.totalBonus), 'pos'),
           stat('Extra from the bonus', 'lisa-diff', MP.money(r.withBal - r.withoutBal), 'pos')),
@@ -477,9 +527,10 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
       el('div', { class: 'stack', id: 'lisa-msgs' }, msgs),
       el('section', { class: 'card', 'aria-labelledby': 'h-lisa-pen' }, el('h2', { id: 'h-lisa-pen' }, 'If you take money out for anything else'),
         el('p', null, 'Before 60, taking money out for anything other than a first home (or terminal illness) costs a 25% charge on the whole amount. That takes back the bonus and some of your own money too.'),
-        el('div', { class: 'panel' },
+        el('div', { class: 'panel detail-only' },
           el('p', { class: 'small', style: { margin: 0 } }, 'You pay in £1,000 and get a £250 bonus: £1,250. Take it out and the 25% charge is £312.50, so you get back £937.50. You have lost £62.50 of your own money, which is 6.25%.')),
-        el('p', { class: 'small muted', style: { margin: '10px 0 0' } }, 'With your figures, ' + MP.money(r.withBal) + ' would shrink to ' + MP.money(r.penaltyPot) + ' after the charge, compared with ' + MP.money(r.withoutBal) + ' saved normally. If you might not buy a home, a regular cash or stocks and shares ISA keeps your money flexible.')));
+        el('p', { class: 'small muted', style: { margin: '10px 0 0' } }, 'With your figures, ' + MP.money(r.withBal) + ' would shrink to ' + MP.money(r.penaltyPot) + ' after the charge, compared with ' + MP.money(r.withoutBal) + ' saved normally. If you might not buy a home, a regular cash or stocks and shares ISA keeps your money flexible.')),
+      MP.adviceCard('investments'));
   }
 
   /* ---------- tips, summary, reset ---------- */
@@ -504,6 +555,7 @@ MP.page({ id: 'savings', title: 'Savings & ISAs' }).then(function () {
     if (!MP.confirm('Clear all your savings plans and ISA deposits in this tool? Your dreams are not affected.')) return;
     var tab = state.tab;
     state = defaults(); state.tab = tab;
+    applyGuide(state);
     MP.set('tools.savings', state);
     MP.set('summaries.savings', undefined);
     MP.log('Reset the Savings & ISAs tool');
