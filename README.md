@@ -28,6 +28,7 @@ bank's CDN). There is no backend.
 
 ```
 index.html            sign in / create account
+guide.html            guided setup (shared/guide.js): adaptive questions → personal plan
 home.html             dashboard: About you, dreams summary, tools, activity, account and backup
 config.js             white-label settings (brand, logo letters, auto-lock minutes)
 shared/style.css      design system (tokens + classes; light and dark)
@@ -42,7 +43,7 @@ tests/<id>.test.js    interaction test per tool
 ## Building a tool (contract)
 
 `apps/<id>/index.html` loads, in order: `../../shared/style.css` (+ optional `style.css`), then scripts
-`../../config.js`, `../../shared/uk.js`, `../../shared/core.js`, optional `data.js`, `app.js`. Body is just
+`../../config.js`, `../../shared/uk.js`, `../../shared/glossary.js`, `../../shared/core.js`, optional `data.js`, `app.js`. Body is just
 `<main id="app"></main>`. `app.js` starts with:
 
 ```js
@@ -70,6 +71,33 @@ MP.lineChart({series:[{name,color:'--c1',values,area,dash}], labels, marker:{ind
 MP.barChart({items:[{label,value,color}], format, label}) · MP.donut({items, center, label}) · MP.shortMoney
 MP.css('--primary') · MP.theme() · MP.onTheme(fn): redraw charts on theme change
 ```
+
+### Personalisation (guided setup)
+
+New customers go through `guide.html` after sign-up. It asks how confident they are with money, how much detail they want,
+and whether they want professional advice, then asks follow-up questions that depend on their priorities. It ends with a
+personal plan of tools and creates dreams from their answers.
+
+```
+MP.prefs() → { knowledge: 'new'|'basics'|'confident', detail: 'simple'|'detailed', advice: 'diy'|'maybe'|'yes',
+               lifeStage, priorities[], answers{}, plan[{tool, why, urgent}], onboarded }
+MP.setPrefs(patch) · MP.onPrefs(fn) · MP.isDetailed() · MP.isBeginner()
+MP.adviceCard(topic)   callout worded by advice preference: general | pension | investments | mortgage | protection | iht | tax | debt
+                       ('yes' → unbiased.co.uk + FCA Register + questions to ask; 'maybe' → one line; 'diy' → MoneyHelper.
+                        'debt' always points to free debt advice.)
+MP.term(key, label?)   clickable jargon with its meaning (keys in shared/glossary.js)
+MP.explain(key|null, text?)  inline 💡 explanation that only beginners see
+```
+
+CSS hooks (driven by `<html data-detail data-knowledge>`): put advanced inputs and breakdowns in `.detail-only`, and
+simple-mode-only text in `.simple-only`. `.explain` and `.beginner-only` are hidden for confident users. Every tool gets
+a Simple/Detailed switch in its breadcrumb bar automatically. Simple mode should still give a complete, correct answer,
+using sensible defaults for the hidden inputs.
+
+Guide answers useful for prefills (all optional, in `MP.prefs().answers`): `dob, region, salary, employment, partnerSalary,
+savingsMonths, essentialCosts, leftover, debtFeel, debtTotal, homeFirst, homePrice, homeDeposit, homeWhen, saveGoal,
+investExp, riskReaction, pensionKnow, pensionTotal, retireAge, dependants, cover, will, family, selfEmp, job`.
+`MP.profile()` also gains `retireAge`, `partnerSalary` and `riskAttitude` from the guide.
 
 ### UK runtime (shared/uk.js)
 

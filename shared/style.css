@@ -80,6 +80,7 @@ img, svg, canvas { max-width: 100%; }
 .mp-header .btn:hover { background: color-mix(in srgb, var(--primary-ink) 14%, transparent); }
 .mp-user { font-size: .9rem; opacity: .9; }
 .mp-crumb { max-width: var(--maxw); margin: 0 auto; padding: 14px 16px 0; width: 100%; font-size: .92rem; }
+.mp-crumb { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
 .mp-crumb a { color: var(--muted); text-decoration: none; }
 .mp-crumb a:hover { text-decoration: underline; }
 main#app { max-width: var(--maxw); width: 100%; margin: 0 auto; padding: 12px 16px 32px; flex: 1; }
@@ -169,6 +170,20 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
 .table td.num, .table th.num { text-align: end; white-space: nowrap; }
 .dropzone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 22px; text-align: center; background: var(--surface-2); }
 .dropzone.over { border-color: var(--info); background: var(--info-soft); }
+
+/* ---------- personalisation ---------- */
+.mp-detail { display: inline-flex; align-items: center; gap: 8px; }
+.seg-sm button { min-height: 36px; padding: 4px 12px; font-size: .9rem; }
+:root[data-detail="simple"] .detail-only { display: none !important; }
+:root[data-detail="detailed"] .simple-only { display: none !important; }
+.explain { font-size: .88rem; color: var(--muted); background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px 10px; margin: 4px 0 10px; }
+:root[data-knowledge="basics"] .explain, :root[data-knowledge="confident"] .explain { display: none; }
+:root[data-knowledge="confident"] .beginner-only { display: none !important; }
+.term { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: help; text-decoration: underline dotted; text-underline-offset: 3px; }
+.term-wrap { position: relative; }
+.term-tip { display: block; margin: 6px 0; padding: 8px 10px; background: var(--info-soft); border-radius: var(--radius-sm); font-size: .88rem; font-weight: 400; }
+.advice-card ul { margin: 6px 0 0; padding-inline-start: 18px; }
+.advice-card.advice-yes { border-color: var(--accent); background: var(--accent-soft); }
 
 /* ---------- home tiles ---------- */
 .tile { display: flex; gap: 14px; align-items: flex-start; text-decoration: none; color: inherit; transition: transform .1s, border-color .1s; }

@@ -18,12 +18,22 @@
   .activity li:last-child { border-bottom: 0; }
   .section-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 26px 0 12px; }
   .section-title h2 { margin: 0; }
+  .group-title { margin: 18px 0 10px; font-size: 1rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .tile.recommended { border-color: var(--accent); }
+  .rec-chip { margin-inline-start: 8px; vertical-align: 2px; }
+  .guide-cta { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; margin-bottom: 16px; border-color: var(--primary); background: var(--primary-soft); }
+  #your-plan { margin-bottom: 16px; }
+  .home-plan { list-style: none; padding: 0; margin: 0 0 12px; display: grid; gap: 8px; }
+  .home-plan li { display: flex; gap: 12px; align-items: flex-start; }
+  .home-plan .n { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-weight: 700; font-size: .9rem; }
+  .home-plan li.done .n { background: var(--success-soft); color: var(--success); }
 </style>
 </head>
 <body>
 <main id="app"></main>
 <script src="config.js"></script>
 <script src="shared/uk.js"></script>
+<script src="shared/glossary.js"></script>
 <script src="shared/core.js"></script>
 <script src="shared/tools.js"></script>
 <script>
@@ -42,20 +52,17 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
         el('p', { class: 'muted', style: { margin: 0 } }, 'Your plans are saved securely on this device.')),
       el('a', { class: 'btn btn-accent', href: 'apps/dreams/index.html', id: 'add-dream' }, '＋ Add a dream')));
 
-    if (new URLSearchParams(location.search).get('welcome') && !p.dob) {
-      main.appendChild(el('div', { class: 'callout success', style: { marginBottom: '16px' } },
-        el('strong', null, 'Welcome! '), 'Start by filling in "About you" below. Every tool uses it, so you only type it once.'));
-    }
+    main.appendChild(planCard(sums));
 
     // snapshot
     var totalTarget = goals.reduce(function (a, g) { return a + (+g.target || 0); }, 0);
     var totalSaved = goals.reduce(function (a, g) { return a + Math.min(+g.saved || 0, +g.target || 0); }, 0);
-    var monthly = goals.reduce(function (a, g) { return a + (+g.monthly || 0); }, 0);
+    var monthly = goals.reduce(function (a, g) { return a + (+g.monthly || +g.monthlyNeeded || 0); }, 0);
     var age = p.dob ? UK.age(p.dob) : null;
     main.appendChild(el('div', { class: 'grid-3' },
       stat('Dreams you are saving for', goals.length ? String(goals.length) : 'None yet', 'stat-goals'),
       stat('Saved towards them', MP.money(totalSaved) + (totalTarget ? ' of ' + MP.money(totalTarget) : ''), 'stat-saved'),
-      stat('Planned each month', MP.money(monthly), 'stat-monthly')));
+      stat('To put aside each month', MP.money(monthly), 'stat-monthly')));
 
     var split = el('div', { class: 'grid-2', style: { marginTop: '16px' } });
     // goals list
@@ -74,17 +81,26 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
     split.appendChild(profileCard(p, age));
     main.appendChild(split);
 
-    // tools
-    main.appendChild(el('div', { class: 'section-title' }, el('h2', null, 'Planning tools')));
-    var grid = el('div', { class: 'grid', id: 'tools' });
-    MP_TOOLS.forEach(function (t) {
-      var s = sums[t.id];
-      grid.appendChild(el('a', { class: 'card tile', href: 'apps/' + t.id + '/index.html', id: 'tool-' + t.id },
-        el('span', { class: 'ico', 'aria-hidden': 'true' }, t.icon),
-        el('span', null, el('h3', null, t.title), el('p', null, t.desc),
-          s ? el('div', { class: 'saved' }, '✓ ' + s.text) : null)));
+    // tools, grouped
+    var recommended = {}; (MP.prefs().plan || []).forEach(function (x) { recommended[x.tool] = 1; });
+    main.appendChild(el('div', { class: 'section-title' }, el('h2', null, 'Planning tools'), MP.detailToggle()));
+    var all = el('div', { id: 'tools' });
+    var groups = window.MP_GROUPS || [{ id: null, title: '' }];
+    groups.forEach(function (gr) {
+      var list = MP_TOOLS.filter(function (t) { return !gr.id || t.group === gr.id; });
+      if (!list.length) return;
+      if (gr.title) all.appendChild(el('h3', { class: 'group-title' }, gr.title));
+      var grid = el('div', { class: 'grid' });
+      list.forEach(function (t) {
+        var s = sums[t.id];
+        grid.appendChild(el('a', { class: 'card tile' + (recommended[t.id] ? ' recommended' : ''), href: 'apps/' + t.id + '/index.html', id: 'tool-' + t.id },
+          el('span', { class: 'ico', 'aria-hidden': 'true' }, t.icon),
+          el('span', null, el('h3', null, t.title, recommended[t.id] ? el('span', { class: 'chip info rec-chip' }, 'For you') : null), el('p', null, t.desc),
+            s ? el('div', { class: 'saved' }, '✓ ' + s.text) : null)));
+      });
+      all.appendChild(grid);
     });
-    main.appendChild(grid);
+    main.appendChild(all);
 
     // activity + account
     var bottom = el('div', { class: 'grid-2', style: { marginTop: '16px' } });
@@ -94,6 +110,37 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
         : el('p', { class: 'muted' }, 'Things you save in the tools will show here.')));
     bottom.appendChild(accountCard());
     main.appendChild(bottom);
+  }
+
+  var LABELS = { knowledge: { new: 'New to money matters', basics: 'Knows the basics', confident: 'Confident' }, advice: { diy: 'Prefers to do it themselves', maybe: 'Open to advice for big decisions', yes: 'Would like an adviser' } };
+  function planCard(sums) {
+    var pr = MP.prefs();
+    if (!pr.onboarded) {
+      return el('section', { class: 'card guide-cta', id: 'guide-cta' },
+        el('div', null, el('h2', null, '👋 Let\'s personalise your planner'),
+          el('p', { class: 'muted', style: { margin: 0 } }, 'Answer a few quick questions and we\'ll suggest where to start, explain things at the right level, and keep things as simple or as detailed as you like.')),
+        el('a', { class: 'btn btn-primary', href: 'guide.html', id: 'start-guide' }, 'Start (2 to 4 minutes)'));
+    }
+    var TOOL = {}; MP_TOOLS.forEach(function (t) { TOOL[t.id] = t; });
+    var steps = (pr.plan || []).filter(function (x) { return TOOL[x.tool]; });
+    var ol = el('ol', { class: 'home-plan', id: 'home-plan' }, steps.map(function (x, i) {
+      var done = !!sums[x.tool];
+      return el('li', { class: done ? 'done' : '' }, el('span', { class: 'n', 'aria-hidden': 'true' }, done ? '✓' : String(i + 1)),
+        el('span', null, el('a', { href: 'apps/' + x.tool + '/index.html' }, TOOL[x.tool].title), x.urgent && !done ? el('span', { class: 'chip danger', style: { marginInlineStart: '6px' } }, 'Urgent') : null,
+          el('span', { class: 'small muted', style: { display: 'block' } }, done ? 'Saved: ' + sums[x.tool].text : x.why)));
+    }));
+    var doneCount = steps.filter(function (x) { return sums[x.tool]; }).length;
+    return el('section', { class: 'card', id: 'your-plan', 'aria-labelledby': 'h-plan' },
+      el('div', { class: 'row', style: { justifyContent: 'space-between' } }, el('h2', { id: 'h-plan', style: { margin: 0 } }, 'Your plan'),
+        el('span', { class: 'small muted' }, doneCount + ' of ' + steps.length + ' steps started')),
+      el('div', { class: 'progress', style: { margin: '10px 0' }, role: 'progressbar', 'aria-label': 'Plan progress', 'aria-valuemin': 0, 'aria-valuemax': steps.length, 'aria-valuenow': doneCount }, el('span', { style: { width: (steps.length ? doneCount / steps.length * 100 : 0) + '%' } })),
+      ol,
+      el('div', { class: 'row small' },
+        el('span', { class: 'chip' }, LABELS.knowledge[pr.knowledge] || 'Knowledge not set'),
+        el('span', { class: 'chip' }, pr.detail === 'detailed' ? 'Detailed view' : 'Simple view'),
+        el('span', { class: 'chip' }, LABELS.advice[pr.advice] || 'Advice not set'),
+        el('a', { href: 'guide.html?restart=1', id: 'redo-guide' }, 'Change my answers')),
+      pr.advice === 'yes' ? MP.adviceCard('general') : null);
   }
 
   function stat(label, value, id) {

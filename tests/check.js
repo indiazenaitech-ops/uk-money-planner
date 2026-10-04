@@ -23,12 +23,14 @@ async function signUp(page) {
   await page.fill('#reg-password', 'correct-horse-42');
   await page.fill('#reg-password2', 'correct-horse-42');
   await page.click('#reg-submit');
-  await page.waitForURL(/home\.html/, { timeout: 20000 });
+  await page.waitForURL(/guide\.html/, { timeout: 20000 });
+  await page.waitForSelector('#guide-q');
+  await page.goto(url('home.html'));
   await page.waitForSelector('#profile-form');
 }
 
 async function checkPage(browser, id) {
-  const rel = id === 'home' ? 'home.html' : `apps/${id}/index.html`;
+  const rel = id === 'home' ? 'home.html' : id === 'guide' ? 'guide.html' : `apps/${id}/index.html`;
   const shots = path.join(__dirname, 'shots', id);
   fs.mkdirSync(shots, { recursive: true });
   const errors = [];
@@ -54,7 +56,7 @@ async function checkPage(browser, id) {
     await page.screenshot({ path: path.join(shots, 'after-test.png'), fullPage: true });
     // saved state survives a reload
     await page.reload(); await page.waitForSelector('.mp-header');
-  } else if (id !== 'home') {
+  } else if (id !== 'home' && id !== 'guide') {
     errors.push(`no test file tests/${id}.test.js`);
   }
 
@@ -74,7 +76,7 @@ async function checkPage(browser, id) {
 
 (async () => {
   const which = process.argv[2] || 'all';
-  const ids = which === 'all' ? ['home'].concat(TOOLS) : [which];
+  const ids = which === 'all' ? ['home', 'guide'].concat(TOOLS) : [which];
   const browser = await playwright.chromium.launch({ headless: true });
   let failed = 0;
   for (const id of ids) {

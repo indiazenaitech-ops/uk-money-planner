@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guided setup · Money Planner</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="shared/style.css">
+<style>
+  .guide-wrap { max-width: 720px; margin: 8px auto 0; }
+  .guide-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .guide-card { margin-top: 14px; }
+  .guide-card h1 { font-size: 1.45rem; outline: none; }
+  .guide-nav { margin-top: 18px; }
+  .choices { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .choice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; background: var(--surface); }
+  .choice:hover { border-color: var(--primary); }
+  .choice:has(input:checked) { border: 2px solid var(--primary); background: var(--primary-soft); padding: 13px; }
+  .choice input { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--primary); flex: none; }
+  .choice > span { display: flex; flex-direction: column; gap: 2px; }
+  .choices-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .choice-tile { display: flex; gap: 10px; align-items: center; text-align: start; font: inherit; font-weight: 600; color: var(--text); padding: 12px 14px; min-height: 56px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); cursor: pointer; }
+  .choice-tile:hover { border-color: var(--primary); }
+  .choice-tile[aria-pressed="true"] { border: 2px solid var(--primary); background: var(--primary-soft); padding: 11px 13px; }
+  .choice-tile .ico { font-size: 1.4rem; }
+  .lead { font-size: 1.08rem; }
+  .plan-list { list-style: none; padding: 0; margin: 16px 0; display: grid; gap: 10px; }
+  .plan-item { display: flex; gap: 14px; align-items: flex-start; padding: 14px; border: 1px solid var(--border); border-radius: 12px; }
+  .plan-item.urgent { border-color: var(--danger); background: var(--danger-soft); }
+  .plan-num { flex: none; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: var(--primary-ink); display: grid; place-items: center; font-weight: 700; }
+  .plan-link { font-weight: 700; font-size: 1.05rem; }
+  .plan-item p { margin: 4px 0 0; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="shared/uk.js"></script>
+<script src="shared/glossary.js"></script>
+<script src="shared/core.js"></script>
+<script src="shared/tools.js"></script>
+<script src="shared/guide.js"></script>
+</body>
+</html>

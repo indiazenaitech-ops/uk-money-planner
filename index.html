@@ -97,7 +97,7 @@
     if ($('#reg-password').value !== $('#reg-password2').value) return fail(box, new Error('The two passwords do not match.'));
     busy(btn, true);
     MP.auth.register($('#reg-name').value, $('#reg-email').value, $('#reg-password').value)
-      .then(function () { location.href = 'home.html?welcome=1'; })
+      .then(function () { location.href = 'guide.html'; })
       .catch(function (err) { fail(box, err); busy(btn, false, 'Create account'); });
   });
 })();

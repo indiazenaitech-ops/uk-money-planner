@@ -105,8 +105,15 @@
   function saveUsers(list) { if (!lsSet(USERS_KEY, list)) throw new Error('This browser has no room left to save your data. Free some space or remove old documents.'); }
   function findUser(email) { email = String(email || '').trim().toLowerCase(); return users().filter(function (u) { return u.email === email; })[0] || null; }
 
+  /* Personalisation chosen in the guided setup (guide.html).
+     knowledge: '' | 'new' | 'basics' | 'confident'
+     detail:    'simple' | 'detailed'   (every tool hides .detail-only content in simple mode)
+     advice:    '' | 'diy' | 'maybe' | 'yes'
+     answers:   raw answers from the guided setup (see README), plan: [{tool, why}] */
+  function defaultPrefs() { return { knowledge: '', detail: 'simple', advice: '', lifeStage: '', priorities: [], answers: {}, plan: [], onboarded: false }; }
+
   function emptyVault(name) {
-    return { version: 1, profile: { name: name, dob: '', region: 'england', salary: 0, employment: 'employed', dependants: 0, riskAttitude: 'balanced' }, goals: [], tools: {}, summaries: {}, documents: [], activity: [] };
+    return { version: 1, profile: { name: name, dob: '', region: 'england', salary: 0, employment: 'employed', dependants: 0, riskAttitude: 'balanced', prefs: defaultPrefs() }, goals: [], tools: {}, summaries: {}, documents: [], activity: [] };
   }
 
   var state = { user: null, key: null, vault: null, saveTimer: null, saving: null };
@@ -205,6 +212,7 @@
     return importKey(s.key).then(function (key) {
       return decryptJSON(key, u.vault).then(function (vault) {
         state.user = u; state.key = key; state.vault = migrate(vault);
+        applyPrefs();
         touch();
         return true;
       });
@@ -214,6 +222,7 @@
     var d = emptyVault(v && v.profile ? v.profile.name : '');
     Object.keys(d).forEach(function (k) { if (v[k] == null) v[k] = d[k]; });
     Object.keys(d.profile).forEach(function (k) { if (v.profile[k] == null) v.profile[k] = d.profile[k]; });
+    Object.keys(d.profile.prefs).forEach(function (k) { if (v.profile.prefs[k] == null) v.profile.prefs[k] = d.profile.prefs[k]; });
     return v;
   }
   function touch() { var s = ssGet(SESSION_KEY); if (s) { s.last = Date.now(); ssSet(SESSION_KEY, s); } }
@@ -247,6 +256,99 @@
   /* Goals are shared by every tool: {id, name, icon, target, saved, date, priority, monthly, linked} */
   MP.goals = function () { return MP.get('goals', []); };
   MP.saveGoals = function (list) { MP.set('goals', list); };
+
+  /* ---------- personalisation ---------- */
+  var prefFns = [];
+  MP.prefs = function () { return clone(state.vault ? state.vault.profile.prefs : defaultPrefs()); };
+  MP.setPrefs = function (patch) {
+    if (!state.vault) return;
+    Object.assign(state.vault.profile.prefs, clone(patch));
+    scheduleSave(); applyPrefs();
+    prefFns.forEach(function (f) { try { f(MP.prefs()); } catch (e) { console.error(e); } });
+  };
+  /* Re-render when the customer switches Simple/Detailed. */
+  MP.onPrefs = function (fn) { prefFns.push(fn); };
+  MP.isDetailed = function () { return MP.prefs().detail === 'detailed'; };
+  MP.isBeginner = function () { var k = MP.prefs().knowledge; return k === 'new' || k === ''; };
+  function applyPrefs() {
+    var p = state.vault ? state.vault.profile.prefs : defaultPrefs(), d = document.documentElement;
+    d.setAttribute('data-detail', p.detail === 'detailed' ? 'detailed' : 'simple');
+    d.setAttribute('data-knowledge', p.knowledge || 'new');
+    d.setAttribute('data-advice', p.advice || 'none');
+    MP.$$('[data-detail-btn]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.detailBtn === (p.detail === 'detailed' ? 'detailed' : 'simple'))); });
+  }
+  /* The Simple / Detailed switch (drawn in the breadcrumb bar of every tool). */
+  MP.detailToggle = function () {
+    var cur = MP.isDetailed() ? 'detailed' : 'simple';
+    var box = el('div', { class: 'seg seg-sm', role: 'group', 'aria-label': 'How much detail to show' });
+    [['simple', 'Simple'], ['detailed', 'Detailed']].forEach(function (o) {
+      box.appendChild(el('button', { type: 'button', id: 'mp-detail-' + o[0], 'aria-pressed': String(o[0] === cur), dataset: { detailBtn: o[0] },
+        onclick: function () { if (MP.prefs().detail !== o[0]) { MP.setPrefs({ detail: o[0] }); MP.toast(o[0] === 'simple' ? 'Showing the essentials.' : 'Showing every option.'); } } }, o[1]));
+    });
+    return el('div', { class: 'mp-detail' }, el('span', { class: 'small muted', 'aria-hidden': 'true' }, 'View:'), box);
+  };
+
+  /* ---------- advice signposting ----------
+     MP.adviceCard(topic) returns a callout pointing to regulated advice or free guidance, worded by the
+     customer's advice preference. topic: general | pension | investments | mortgage | protection | iht | tax | debt */
+  var ADVICE = {
+    general: { who: 'a regulated financial adviser', why: 'An adviser looks at your whole situation and recommends what to do.' },
+    pension: { who: 'a financial adviser who specialises in pensions', why: 'Decisions about taking your pension are often hard to undo.' },
+    investments: { who: 'a financial adviser', why: 'An adviser can recommend investments that match your goals and attitude to risk.' },
+    mortgage: { who: 'a mortgage adviser or broker', why: 'A broker can search many lenders and check what you can borrow.' },
+    protection: { who: 'a protection adviser or broker', why: 'They can compare insurers and help you disclose your health correctly.' },
+    iht: { who: 'a financial planner or a solicitor', why: 'Wills, trusts and gifts have legal and tax rules that are easy to get wrong.' },
+    tax: { who: 'an accountant or tax adviser', why: 'They can check what you can claim and file returns for you.' },
+    debt: { who: 'a free debt adviser', why: 'Free, confidential debt advice can stop interest and charges and agree affordable payments.' }
+  };
+  function link(href, text) { return el('a', { href: href, target: '_blank', rel: 'noopener' }, text); }
+  MP.adviceCard = function (topic, opts) {
+    opts = opts || {};
+    var a = ADVICE[topic] || ADVICE.general, pref = MP.prefs().advice, age = state.vault && state.vault.profile.dob && window.UK ? UK.age(state.vault.profile.dob) : null;
+    var box = el('aside', { class: 'callout advice-card advice-' + (pref || 'none'), 'aria-label': 'Getting advice' });
+    if (topic === 'debt') {
+      box.appendChild(el('p', null, el('strong', null, 'Free debt help: '), a.why + ' Try ', link('https://www.stepchange.org', 'StepChange'), ', ',
+        link('https://nationaldebtline.org', 'National Debtline'), ' or ', link('https://www.citizensadvice.org.uk', 'Citizens Advice'), '. You never need to pay for debt advice.'));
+      return box;
+    }
+    if (pref === 'yes') {
+      box.appendChild(el('p', null, el('strong', null, 'Talk to ' + a.who + '. '), a.why));
+      box.appendChild(el('ul', { class: 'small' },
+        el('li', null, 'Find a local, regulated adviser on ', link('https://www.unbiased.co.uk', 'unbiased.co.uk'), '. You can filter by what you need, such as pensions or mortgages.'),
+        el('li', null, 'Check any adviser or firm on the ', link('https://register.fca.org.uk', 'FCA Register'), ' before you go ahead.'),
+        el('li', null, 'Ask whether they are "independent" (they consider products from the whole market) or "restricted", and how they charge: a fixed fee, an hourly rate or a percentage.'),
+        el('li', null, 'Take this plan with you: it will make your first meeting quicker.')));
+    } else if (pref === 'maybe') {
+      box.appendChild(el('p', { class: 'small' }, el('strong', null, 'Want a second opinion? '), a.why + ' You can find a regulated adviser on ',
+        link('https://www.unbiased.co.uk', 'unbiased.co.uk'), ' and check them on the ', link('https://register.fca.org.uk', 'FCA Register'), '.'));
+    } else {
+      box.appendChild(el('p', { class: 'small' }, 'Free, impartial guidance: ', link('https://www.moneyhelper.org.uk', 'MoneyHelper'),
+        '. If you ever want personal advice, ', link('https://www.unbiased.co.uk', 'unbiased.co.uk'), ' lists regulated advisers.'));
+    }
+    if ((topic === 'pension' || topic === 'general') && age != null && age >= 50) {
+      box.appendChild(el('p', { class: 'small' }, 'You are 50 or over, so you can book a free ', link('https://www.moneyhelper.org.uk/en/pensions-and-retirement/pension-wise', 'Pension Wise'), ' appointment about your pension options.'));
+    }
+    return box;
+  };
+
+  /* ---------- plain-English explanations ----------
+     MP.term('isa') → a clickable term that shows its meaning. MP.explain('isa') → an inline explanation
+     that only beginners see (hidden by CSS for other knowledge levels). Definitions live in shared/glossary.js. */
+  MP.define = function (key) { var g = window.MP_GLOSSARY || {}; return g[String(key).toLowerCase()] || null; };
+  MP.term = function (key, label) {
+    var d = MP.define(key);
+    if (!d) return document.createTextNode(label || key);
+    var tip = el('span', { class: 'term-tip', role: 'note', hidden: true }, el('strong', null, d.term + ': '), d.text);
+    var btn = el('button', { type: 'button', class: 'term', 'aria-expanded': 'false', onclick: function (e) {
+      e.preventDefault(); var open = tip.hidden; tip.hidden = !open; btn.setAttribute('aria-expanded', String(open));
+    } }, label || d.term);
+    return el('span', { class: 'term-wrap' }, btn, tip);
+  };
+  MP.explain = function (key, text) {
+    var d = text ? { text: text } : MP.define(key);
+    if (!d) return null;
+    return el('p', { class: 'explain' }, el('span', { 'aria-hidden': 'true' }, '💡 '), d.text);
+  };
 
   function scheduleSave() { clearTimeout(state.saveTimer); state.saveTimer = setTimeout(flush, 250); }
   function flush() {
@@ -326,7 +428,7 @@
       document.body.insertBefore(header(true), document.body.firstChild);
       if (opts.id !== 'home') {
         document.body.insertBefore(el('nav', { class: 'mp-crumb no-print', 'aria-label': 'Breadcrumb' },
-          el('a', { href: MP.root() + 'home.html', id: 'mp-back' }, '← All tools')), main);
+          el('a', { href: MP.root() + 'home.html', id: 'mp-back' }, '← All tools'), opts.noToggle ? null : MP.detailToggle()), main);
       }
       document.body.appendChild(footer());
       startIdleWatch();
