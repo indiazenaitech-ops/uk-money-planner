@@ -41,6 +41,13 @@ knowledge base (how the app works, 2026/27 UK figures, glossary) and five client
 | `show_term {term}` | Shows the glossary meaning on screen and returns it to the agent |
 | `get_my_plan` | Returns priorities, plan steps, dreams and saved results, only with the customer's permission |
 | `read_screen` | Returns headings (and figures, with permission) of what is on screen |
+| `get_screen_controls` | Lists visible buttons, answer choices, tabs, dropdowns and boxes with ids (`c12`), labels, values and state |
+| `click_control {control}` | Chooses an answer, presses Next, opens a tab or ticks a box (by id or label) |
+| `fill_field {control, value}` | Types into a box or picks a dropdown option |
+
+Screen control is implemented in `MP.controls()` / `MP.act()` (shared/core.js) and reaches the tool panel by
+`postMessage`. Sign out, delete, remove, reset, clear, import/backup, password and file controls are never listed or
+usable, and each control the guide touches flashes so the customer can see it.
 
 Agent privacy settings: voice recordings off, transcripts deleted after 30 days, prompt-injection and topic guardrails on.
 Before real customers use it, the institution needs its own data processing agreement with ElevenLabs and a Consumer Duty

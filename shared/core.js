@@ -344,6 +344,98 @@
     } else out += '\n(Figures are hidden because the customer has not let the guide see their plan.)';
     return out;
   };
+  /* ---------- letting the live guide operate the screen ----------
+     MP.controls() lists what the customer can press or fill; MP.act() does it on their behalf.
+     Destructive or sensitive controls are never exposed. Every action flashes the control it touched. */
+  var BLOCK = /sign ?out|delete|remove|reset|clear|import|backup|password|switch the guide off|dismiss|log ?out/i;
+  var BLOCK_IDS = /^(mp-signout|delete-acc|restore|backup|change-pw|lg-stop|lg-share|lg-share-set)$/;
+  function ctlLabel(n) {
+    var t = n.getAttribute('aria-label') || '';
+    if (!t && n.id) { var l = document.querySelector('label[for="' + n.id + '"]'); if (l) t = l.textContent; }
+    if (!t && n.closest('label')) t = n.closest('label').innerText || n.closest('label').textContent;
+    if (!t && n.closest('.field')) { var lab = n.closest('.field').querySelector('label, .label'); if (lab) t = lab.textContent; }
+    if (!t) t = n.innerText || n.textContent || n.getAttribute('placeholder') || n.value || '';
+    return t.replace(/\s*\n\s*/g, ' - ').replace(/\s+/g, ' ').trim().slice(0, 90);
+  }
+  function ctlVisible(n) { return n.offsetParent !== null && !n.closest('[hidden]'); }
+  function ctlAllowed(n, label) {
+    if (n.type === 'password' || n.type === 'file' || n.type === 'hidden') return false;
+    if (BLOCK_IDS.test(n.id || '') || BLOCK.test(label) || n.classList.contains('btn-danger')) return false;
+    return true;
+  }
+  var ctlSeq = 0;
+  MP.controls = function () {
+    var root = document.getElementById('app') || document.body, out = [], seenRadio = {};
+    var nodes = $$('button, a.btn, a.plan-link, [role="tab"], input, select, textarea, label.choice', root).concat($$('.mp-crumb button', document));
+    nodes.forEach(function (n) {
+      if (n.tagName === 'INPUT' && n.type === 'radio' && n.closest('label.choice')) return; // represented by its label
+      if (!ctlVisible(n)) return;
+      var label = ctlLabel(n); if (!label || !ctlAllowed(n, label)) return;
+      if (!n.dataset.mpCtl) n.dataset.mpCtl = 'c' + (++ctlSeq);
+      var type, value = null, state = null;
+      if (n.tagName === 'LABEL') { var r = n.querySelector('input'); type = r && r.type === 'checkbox' ? 'checkbox' : 'choice'; state = r && r.checked ? 'selected' : null; if (r && r.name) { if (seenRadio[r.name + r.value]) return; seenRadio[r.name + r.value] = 1; } }
+      else if (n.tagName === 'SELECT') { type = 'dropdown'; value = n.options[n.selectedIndex] ? n.options[n.selectedIndex].text : ''; state = 'options: ' + Array.prototype.map.call(n.options, function (o) { return o.text; }).slice(0, 12).join(' / '); }
+      else if (n.tagName === 'INPUT' && (n.type === 'checkbox' || n.type === 'radio')) { type = n.type; state = n.checked ? 'ticked' : 'not ticked'; }
+      else if (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA') { type = n.closest('.money-input') ? 'money box (£)' : n.type === 'range' ? 'slider ' + n.min + ' to ' + n.max : (n.type || 'text') + ' box'; value = n.value; }
+      else { type = n.getAttribute('role') === 'tab' ? 'tab' : n.tagName === 'A' ? 'link' : 'button'; if (n.getAttribute('aria-pressed') === 'true' || n.getAttribute('aria-selected') === 'true') state = 'selected'; }
+      if (n.disabled) state = 'disabled until an answer is chosen';
+      out.push({ id: n.dataset.mpCtl, type: type, label: label, value: value, state: state });
+    });
+    return out.slice(0, 80);
+  };
+  MP.controlsText = function (includeValues) {
+    var list = MP.controls();
+    if (!list.length) return 'No controls are visible right now.';
+    return 'Screen: ' + document.title + '\n' + list.map(function (c) {
+      var v = c.value != null && c.value !== '' ? (includeValues ? ' = ' + c.value : ' = (filled in)') : '';
+      return c.id + ' | ' + c.type + ' | ' + c.label + v + (c.state ? ' [' + c.state + ']' : '');
+    }).join('\n');
+  };
+  function flash(n) {
+    n.classList.add('mp-guided'); n.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    setTimeout(function () { n.classList.remove('mp-guided'); }, 1600);
+  }
+  function findCtl(ref) {
+    ref = String(ref || '').trim();
+    var n = document.querySelector('[data-mp-ctl="' + ref.replace(/"/g, '') + '"]');
+    if (!n) { // fall back to matching the label the customer heard
+      MP.controls();
+      var low = ref.toLowerCase();
+      n = $$('[data-mp-ctl]').filter(ctlVisible).filter(function (x) { return ctlLabel(x).toLowerCase() === low; })[0] ||
+        $$('[data-mp-ctl]').filter(ctlVisible).filter(function (x) { return ctlLabel(x).toLowerCase().indexOf(low) >= 0; })[0];
+    }
+    return n;
+  }
+  MP.act = function (a) {
+    a = a || {};
+    var n = findCtl(a.control);
+    if (!n || !ctlVisible(n)) return 'I could not find "' + a.control + '" on the screen. Ask for the screen controls again.';
+    var label = ctlLabel(n);
+    if (n.disabled) return '"' + label + '" is not available yet. Usually an answer needs choosing first.';
+    if (!ctlAllowed(n, label)) return 'For safety, the guide cannot use "' + label + '". Ask the customer to do it themselves.';
+    if (a.action === 'fill') {
+      var t = n.tagName === 'LABEL' ? n.querySelector('input') : n;
+      if (t.tagName === 'SELECT') {
+        var want = String(a.value).toLowerCase(), opt = Array.prototype.filter.call(t.options, function (o) { return o.text.toLowerCase() === want || o.value.toLowerCase() === want; })[0] ||
+          Array.prototype.filter.call(t.options, function (o) { return o.text.toLowerCase().indexOf(want) >= 0; })[0];
+        if (!opt) return '"' + a.value + '" is not one of the options for ' + label + '.';
+        t.value = opt.value;
+      } else if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
+        var v = String(a.value);
+        if (t.type === 'number' || t.closest('.money-input') || t.type === 'range') v = String(num(v));
+        t.value = v;
+      } else return label + ' is not something you can type into. Use click instead.';
+      t.dispatchEvent(new Event('input', { bubbles: true })); t.dispatchEvent(new Event('change', { bubbles: true }));
+      flash(n);
+      return 'Filled "' + label + '" with ' + (t.tagName === 'SELECT' ? t.options[t.selectedIndex].text : t.value) + '.';
+    }
+    flash(n);
+    if (n.tagName === 'LABEL') { var inp = n.querySelector('input'); if (inp) { inp.click(); return (inp.type === 'checkbox' ? (inp.checked ? 'Ticked "' : 'Unticked "') : 'Selected "') + label + '".'; } }
+    if (n.tagName === 'INPUT' && (n.type === 'checkbox' || n.type === 'radio')) { n.click(); return (n.checked ? 'Ticked "' : 'Unticked "') + label + '".'; }
+    n.click();
+    return 'Pressed "' + label + '".';
+  };
+
   if (window.parent !== window) {
     // inside the guide's panel: the outer page already shows the header, footer and sign-out
     document.documentElement.classList.add('mp-embedded');
@@ -352,6 +444,8 @@
       if (e.source !== window.parent || !d || typeof d !== 'object' || !d.mp) return;
       if (d.mp === 'setPrefs' && d.patch && typeof d.patch.detail === 'string') MP.setPrefs({ detail: d.patch.detail === 'detailed' ? 'detailed' : 'simple' });
       if (d.mp === 'readScreen') e.source.postMessage({ mp: 'screen', id: d.id, text: MP.screenText(!!d.figures) }, '*');
+      if (d.mp === 'controls') e.source.postMessage({ mp: 'screen', id: d.id, text: MP.controlsText(!!d.figures) }, '*');
+      if (d.mp === 'act') e.source.postMessage({ mp: 'screen', id: d.id, text: MP.act({ action: d.action === 'fill' ? 'fill' : 'click', control: d.control, value: d.value }) }, '*');
     });
   }
 

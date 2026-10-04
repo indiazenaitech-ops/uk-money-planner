@@ -13,7 +13,7 @@ module.exports = async ({ page, expect, url }) => {
   await page.click('#lg-start'); // plan sharing left unticked
   await page.waitForFunction(() => window.__lgTools);
   const names = await page.evaluate(() => Object.keys(window.__lgTools).sort().join(','));
-  expect(names === 'get_my_plan,open_tool,read_screen,set_view,show_term', 'client tools registered: ' + names);
+  expect(names === 'click_control,fill_field,get_my_plan,get_screen_controls,open_tool,read_screen,set_view,show_term', 'client tools registered: ' + names);
   const vars = JSON.parse(await page.evaluate(() => window.__lgVars));
   expect(vars.plan_shared === 'no' && vars.greeting_name === '' && vars.current_page === 'home', 'no personal data in variables without consent: ' + JSON.stringify(vars));
 
@@ -40,8 +40,35 @@ module.exports = async ({ page, expect, url }) => {
   const term = await page.evaluate(() => window.__lgTools.show_term({ term: 'lifetime isa' }));
   expect(/25%/.test(term) && await page.isVisible('.lg-term'), 'show_term returns and shows the definition');
 
-  // allow plan sharing, then the plan is available
+  // the guide can operate the guided setup: pick an answer and press Next
+  await page.evaluate(() => window.__lgTools.open_tool({ tool_id: 'guide' }));
+  await frame.locator('[data-step="knowledge"]').waitFor();
+  const ctls = await page.evaluate(() => window.__lgTools.get_screen_controls());
+  expect(/choice \| I'm new to this/.test(ctls) && /button \| Next/.test(ctls), 'controls list the answers and Next: ' + ctls.split('\n').slice(0, 4).join(' / '));
+  const picked = await page.evaluate(() => window.__lgTools.click_control({ control: "I'm new to this" }));
+  expect(/Selected/.test(picked), 'guide selects an answer: ' + picked);
+  const next = await page.evaluate(() => window.__lgTools.click_control({ control: 'Next' }));
+  await frame.locator('[data-step="detail"]').waitFor({ timeout: 5000 });
+  expect(/Pressed "Next"/.test(next), 'guide presses Next and the next question appears');
+
+  // ...and fill a box in a tool
+  await page.evaluate(() => window.__lgTools.open_tool({ tool_id: 'take-home' }));
+  await frame.locator('#app h1').waitFor();
+  await page.waitForTimeout(500);
+  const list = await page.evaluate(() => window.__lgTools.get_screen_controls());
+  const salaryLine = list.split('\n').find((l) => /money box/.test(l) && /pay before tax/i.test(l));
+  expect(!!salaryLine, 'salary box listed: ' + list.split('\n').slice(0, 6).join(' / '));
+  const filled = await page.evaluate((id) => window.__lgTools.fill_field({ control: id, value: '£50,000' }), salaryLine.split(' | ')[0].replace(/^\(In the tool panel\) /, ''));
+  expect(/50000/.test(filled), 'guide fills the salary: ' + filled);
   await page.click('#lg-panel-close');
+
+  // never anything destructive
+  const refused = await page.evaluate(() => window.__lgTools.click_control({ control: 'Sign out' }));
+  expect(/cannot use|could not find/.test(refused) && /home\.html/.test(page.url()), 'sign out is refused: ' + refused);
+  const listMain = await page.evaluate(() => window.__lgTools.get_screen_controls());
+  expect(!/Delete account|Sign out|Change password/.test(listMain), 'dangerous controls are never listed');
+
+  // allow plan sharing, then the plan is available
   await page.click('#lg-launcher');
   await page.check('#lg-share-set');
   await page.waitForTimeout(400);

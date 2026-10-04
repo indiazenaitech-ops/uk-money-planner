@@ -221,3 +221,4 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
 .listen { min-height: 32px; padding: 2px 10px; font-size: .84rem; margin-inline-start: 6px; color: var(--info); vertical-align: baseline; }
 .listen[aria-pressed="true"] { background: var(--info-soft); }
 .term-tip .listen { margin-top: 4px; }
+.mp-guided { outline: 4px solid var(--accent) !important; outline-offset: 3px; box-shadow: 0 0 0 8px var(--accent-soft) !important; transition: outline-color .2s; }

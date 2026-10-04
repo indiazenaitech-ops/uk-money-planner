@@ -36,10 +36,11 @@
   function consent() {
     var share = el('input', { type: 'checkbox', id: 'lg-share', checked: !!gp().sharePlan });
     var body = el('div', { class: 'lg-consent' },
-      el('p', null, 'Your guide can talk you through the planner, explain money words and open the right tools for you. Speak or type: it\'s up to you.'),
+      el('p', null, 'Your guide can talk you through the planner like a person on the phone: explain money words, open the right tools, and, if you ask, choose answers, press Next and fill in boxes for you. Speak or type: it\'s up to you.'),
       el('ul', { class: 'small' },
         el('li', null, 'The guide is an AI assistant run by ElevenLabs. What you say or type is sent to them to run the conversation. Transcripts are kept for 30 days; voice recordings are not kept.'),
         el('li', null, 'It gives general guidance, not personal financial advice.'),
+        el('li', null, 'Anything it presses or fills in flashes on screen, and you can change it. It can never sign out, delete or reset anything.'),
         el('li', null, 'Never share passwords, PINs, card or account numbers.')),
       el('label', { class: 'check' }, share, el('span', null, el('strong', null, 'Let the guide see my plan'), el('span', { class: 'small muted', style: { display: 'block' } }, 'Your priorities, dreams and saved results, so it can talk about your situation. You can change this any time.'))),
       el('div', { class: 'row', style: { marginTop: '12px' } },
@@ -189,6 +190,21 @@
         lines.push('Saved results: ' + (Object.keys(sums).map(function (k) { return (TOOL[k] || k) + ': ' + sums[k].text; }).join('; ') || 'none'));
         return lines.join('\n');
       });
+    },
+    get_screen_controls: function () {
+      var share = !!gp().sharePlan;
+      return askFrame({ mp: 'controls', figures: share }).then(function (text) { return (panelOpen() ? '(In the tool panel) ' : '') + (text || MP.controlsText(share)); });
+    },
+    click_control: function (p) {
+      var ctl = p && (p.control || p.control_id || p.label);
+      if (panelOpen()) return askFrame({ mp: 'act', action: 'click', control: ctl }, 5000).then(function (t) { return t || 'The panel did not respond.'; });
+      return MP.act({ action: 'click', control: ctl });
+    },
+    fill_field: function (p) {
+      var ctl = p && (p.control || p.control_id || p.label), val = p && p.value;
+      if (val == null || val === '') return 'Tell me the value to enter.';
+      if (panelOpen()) return askFrame({ mp: 'act', action: 'fill', control: ctl, value: val }, 5000).then(function (t) { return t || 'The panel did not respond.'; });
+      return MP.act({ action: 'fill', control: ctl, value: val });
     },
     read_screen: function () {
       var share = !!gp().sharePlan;
