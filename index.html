@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in · Money Planner</title>
+<meta name="description" content="Plan for retirement, savings, investments and life goals. Private, on-device financial planning tools.">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="shared/style.css">
+</head>
+<body>
+<main id="app">
+  <div class="auth-wrap">
+    <div class="auth-hero">
+      <div class="mp-logo" id="hero-logo" aria-hidden="true">MP</div>
+      <h1 id="hero-title">Money Planner</h1>
+      <p class="muted">Plan for retirement, savings, investments and the things you dream of, all in one place.</p>
+    </div>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-login" aria-selected="true" aria-controls="form-login">Sign in</button>
+        <button type="button" role="tab" id="tab-register" aria-selected="false" aria-controls="form-register">Create account</button>
+      </div>
+      <form id="form-login" role="tabpanel" aria-labelledby="tab-login" novalidate>
+        <div class="field"><label for="login-email">Email</label><input id="login-email" type="email" autocomplete="username" required></div>
+        <div class="field"><label for="login-password">Password</label><input id="login-password" type="password" autocomplete="current-password" required></div>
+        <p class="callout danger" id="login-error" hidden role="alert"></p>
+        <button class="btn btn-primary btn-block" id="login-submit" type="submit">Sign in</button>
+      </form>
+      <form id="form-register" role="tabpanel" aria-labelledby="tab-register" hidden novalidate>
+        <div class="field"><label for="reg-name">Your name</label><input id="reg-name" type="text" autocomplete="name" required></div>
+        <div class="field"><label for="reg-email">Email</label><input id="reg-email" type="email" autocomplete="username" required></div>
+        <div class="field"><label for="reg-password">Password</label><input id="reg-password" type="password" autocomplete="new-password" required aria-describedby="reg-hint">
+          <span class="hint" id="reg-hint">At least 10 characters, mixing letters with numbers or symbols. We can't reset it for you, because only you hold the key to your data.</span></div>
+        <div class="field"><label for="reg-password2">Confirm password</label><input id="reg-password2" type="password" autocomplete="new-password" required></div>
+        <p class="callout danger" id="reg-error" hidden role="alert"></p>
+        <button class="btn btn-primary btn-block" id="reg-submit" type="submit">Create account</button>
+      </form>
+    </div>
+    <details class="card" style="margin-top:16px">
+      <summary>How your privacy is protected</summary>
+      <ul class="small">
+        <li>Your account and plans are stored only in this browser, on this device.</li>
+        <li>Everything is encrypted with a key made from your password, so nobody else using this device can read it.</li>
+        <li>Statements and emails you open are read on your device and never uploaded.</li>
+        <li>You're signed out automatically after a period of no activity, or when you close the tab.</li>
+        <li>To use another device, download a backup from your home page and import it there.</li>
+      </ul>
+    </details>
+  </div>
+</main>
+<script src="config.js"></script>
+<script src="shared/uk.js"></script>
+<script src="shared/core.js"></script>
+<script>
+(function () {
+  var $ = MP.$, params = new URLSearchParams(location.search);
+  var C = MP.config;
+  MP.$('#hero-logo').textContent = C.logoText || 'MP';
+  MP.$('#hero-title').textContent = (C.product || 'Money Planner');
+
+  function next() {
+    var n = params.get('next') || '';
+    return /^apps\/[a-z-]+\/(index\.html)?$/.test(n) ? n : 'home.html';
+  }
+  MP.publicPage().then(function (ok) { if (ok === true) location.replace(next()); });
+
+  var msgs = { idle: 'You were signed out because there was no activity for a while.', signedout: 'You have signed out.', deleted: 'Your account and its data were deleted from this device.' };
+  var why = params.get('signedout');
+  if (msgs[why]) $('#notice').appendChild(MP.el('p', { class: 'callout' }, msgs[why]));
+
+  function showTab(which) {
+    ['login', 'register'].forEach(function (t) {
+      $('#tab-' + t).setAttribute('aria-selected', String(t === which));
+      $('#form-' + t).hidden = t !== which;
+    });
+    $(which === 'login' ? '#login-email' : '#reg-name').focus();
+  }
+  $('#tab-login').onclick = function () { showTab('login'); };
+  $('#tab-register').onclick = function () { showTab('register'); };
+  if (!MP.auth.users().length) showTab('register');
+
+  function busy(btn, on, label) { btn.disabled = on; btn.textContent = on ? 'Please wait…' : label; }
+  function fail(box, e) { box.textContent = e.message || String(e); box.hidden = false; }
+
+  $('#form-login').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var box = $('#login-error'), btn = $('#login-submit'); box.hidden = true; busy(btn, true);
+    MP.auth.login($('#login-email').value, $('#login-password').value)
+      .then(function () { location.href = next(); })
+      .catch(function (err) { fail(box, err); busy(btn, false, 'Sign in'); });
+  });
+  $('#form-register').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var box = $('#reg-error'), btn = $('#reg-submit'); box.hidden = true;
+    if ($('#reg-password').value !== $('#reg-password2').value) return fail(box, new Error('The two passwords do not match.'));
+    busy(btn, true);
+    MP.auth.register($('#reg-name').value, $('#reg-email').value, $('#reg-password').value)
+      .then(function () { location.href = 'home.html?welcome=1'; })
+      .catch(function (err) { fail(box, err); busy(btn, false, 'Create account'); });
+  });
+})();
+</script>
+</body>
+</html>

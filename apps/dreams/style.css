@@ -1,0 +1,18 @@
+.template-grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.template { justify-content: flex-start; text-align: start; min-height: 52px; }
+.template span { font-size: 1.3rem; }
+.goal-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+.goal-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.goal-head h3 { margin: 0; overflow-wrap: anywhere; }
+.goal-head .chip { margin-inline-start: auto; flex: none; }
+.goal-ico { font-size: 1.8rem; line-height: 1; }
+.goal-nums { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.goal-nums .value { font-size: 1.05rem; }
+.goal-nums .label { font-size: .78rem; }
+.icon-pick { display: flex; flex-wrap: wrap; gap: 6px; }
+.icon-pick button { width: 42px; height: 42px; font-size: 1.3rem; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; }
+.icon-pick button[aria-checked="true"] { border: 2px solid var(--primary); background: var(--primary-soft); }
+.timeline { list-style: none; padding: 0; margin: 0; border-inline-start: 3px solid var(--primary-soft); }
+.timeline li { display: flex; gap: 12px; padding-block: 6px; padding-inline-start: 16px; position: relative; }
+.timeline li::before { content: ""; position: absolute; inset-inline-start: -8px; top: 13px; width: 13px; height: 13px; border-radius: 50%; background: var(--accent); }
+.timeline .when { font-weight: 700; min-width: 44px; font-variant-numeric: tabular-nums; }

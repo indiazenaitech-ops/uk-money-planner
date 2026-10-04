@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home · Money Planner</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="shared/style.css">
+<style>
+  .hello { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: flex-end; margin: 8px 0 18px; }
+  .hello h1 { margin: 0; }
+  .goal-row { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .goal-row:last-child { border-bottom: 0; }
+  .goal-row .ico { font-size: 1.4rem; grid-row: span 2; }
+  .goal-row .progress { grid-column: 2 / 4; }
+  .activity { list-style: none; padding: 0; margin: 0; }
+  .activity li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: .92rem; }
+  .activity li:last-child { border-bottom: 0; }
+  .section-title { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin: 26px 0 12px; }
+  .section-title h2 { margin: 0; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="shared/uk.js"></script>
+<script src="shared/core.js"></script>
+<script src="shared/tools.js"></script>
+<script>
+MP.page({ id: 'home', title: 'Home' }).then(function () {
+  var el = MP.el, main = MP.$('#app');
+  var REGIONS = [['england', 'England'], ['wales', 'Wales'], ['scotland', 'Scotland'], ['ni', 'Northern Ireland']];
+  var RISK = [['cautious', 'Cautious'], ['balanced', 'Balanced'], ['adventurous', 'Adventurous']];
+
+  function render() {
+    var p = MP.profile(), goals = MP.goals(), sums = MP.get('summaries', {});
+    main.innerHTML = '';
+    var first = (p.name || '').split(' ')[0];
+    var hour = new Date().getHours();
+    main.appendChild(el('div', { class: 'hello' },
+      el('div', null, el('h1', null, (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening') + ', ' + first),
+        el('p', { class: 'muted', style: { margin: 0 } }, 'Your plans are saved securely on this device.')),
+      el('a', { class: 'btn btn-accent', href: 'apps/dreams/index.html', id: 'add-dream' }, '＋ Add a dream')));
+
+    if (new URLSearchParams(location.search).get('welcome') && !p.dob) {
+      main.appendChild(el('div', { class: 'callout success', style: { marginBottom: '16px' } },
+        el('strong', null, 'Welcome! '), 'Start by filling in "About you" below. Every tool uses it, so you only type it once.'));
+    }
+
+    // snapshot
+    var totalTarget = goals.reduce(function (a, g) { return a + (+g.target || 0); }, 0);
+    var totalSaved = goals.reduce(function (a, g) { return a + Math.min(+g.saved || 0, +g.target || 0); }, 0);
+    var monthly = goals.reduce(function (a, g) { return a + (+g.monthly || 0); }, 0);
+    var age = p.dob ? UK.age(p.dob) : null;
+    main.appendChild(el('div', { class: 'grid-3' },
+      stat('Dreams you are saving for', goals.length ? String(goals.length) : 'None yet', 'stat-goals'),
+      stat('Saved towards them', MP.money(totalSaved) + (totalTarget ? ' of ' + MP.money(totalTarget) : ''), 'stat-saved'),
+      stat('Planned each month', MP.money(monthly), 'stat-monthly')));
+
+    var split = el('div', { class: 'grid-2', style: { marginTop: '16px' } });
+    // goals list
+    var gc = el('section', { class: 'card', 'aria-labelledby': 'h-goals' }, el('h2', { id: 'h-goals' }, 'Your dreams'));
+    if (!goals.length) gc.appendChild(el('p', { class: 'muted' }, 'Nothing here yet. A home deposit, a wedding, a dream holiday, retiring at 60: add what matters to you and we will work out a plan.'));
+    goals.slice().sort(function (a, b) { return (a.priority || 2) - (b.priority || 2); }).slice(0, 6).forEach(function (g) {
+      var pc = g.target ? MP.clamp((+g.saved || 0) / g.target, 0, 1) : 0;
+      gc.appendChild(el('div', { class: 'goal-row' },
+        el('span', { class: 'ico', 'aria-hidden': 'true' }, g.icon || '🎯'),
+        el('strong', null, g.name),
+        el('span', { class: 'small muted' }, MP.money(g.saved || 0) + ' / ' + MP.money(g.target || 0)),
+        el('div', { class: 'progress', role: 'progressbar', 'aria-valuenow': Math.round(pc * 100), 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-label': g.name + ' progress' }, el('span', { style: { width: (pc * 100) + '%' } }))));
+    });
+    gc.appendChild(el('p', { style: { marginTop: '12px' } }, el('a', { href: 'apps/dreams/index.html' }, goals.length ? 'Manage your dreams →' : 'Add your first dream →')));
+    split.appendChild(gc);
+    split.appendChild(profileCard(p, age));
+    main.appendChild(split);
+
+    // tools
+    main.appendChild(el('div', { class: 'section-title' }, el('h2', null, 'Planning tools')));
+    var grid = el('div', { class: 'grid', id: 'tools' });
+    MP_TOOLS.forEach(function (t) {
+      var s = sums[t.id];
+      grid.appendChild(el('a', { class: 'card tile', href: 'apps/' + t.id + '/index.html', id: 'tool-' + t.id },
+        el('span', { class: 'ico', 'aria-hidden': 'true' }, t.icon),
+        el('span', null, el('h3', null, t.title), el('p', null, t.desc),
+          s ? el('div', { class: 'saved' }, '✓ ' + s.text) : null)));
+    });
+    main.appendChild(grid);
+
+    // activity + account
+    var bottom = el('div', { class: 'grid-2', style: { marginTop: '16px' } });
+    var act = MP.get('activity', []);
+    bottom.appendChild(el('section', { class: 'card' }, el('h2', null, 'Recent activity'),
+      act.length ? el('ul', { class: 'activity' }, act.slice(0, 8).map(function (a) { return el('li', null, a.text, el('span', { class: 'muted tiny' }, ' · ' + MP.fmtDate(a.at))); }))
+        : el('p', { class: 'muted' }, 'Things you save in the tools will show here.')));
+    bottom.appendChild(accountCard());
+    main.appendChild(bottom);
+  }
+
+  function stat(label, value, id) {
+    return el('div', { class: 'card stat' }, el('span', { class: 'label' }, label), el('span', { class: 'value', id: id }, value));
+  }
+
+  function profileCard(p, age) {
+    var form = el('form', { id: 'profile-form', novalidate: true });
+    var name = el('input', { type: 'text', id: 'p-name', value: p.name || '', autocomplete: 'name' });
+    var dob = el('input', { type: 'date', id: 'p-dob', value: p.dob || '', max: MP.isoDate(new Date()) });
+    var region = el('select', { id: 'p-region' }, REGIONS.map(function (r) { return el('option', { value: r[0], selected: p.region === r[0] }, r[1]); }));
+    var sal = MP.moneyInput({ id: 'p-salary', value: p.salary || '' });
+    var emp = el('select', { id: 'p-employment' }, [['employed', 'Employed'], ['self', 'Self-employed'], ['retired', 'Retired'], ['other', 'Not working / other']].map(function (r) { return el('option', { value: r[0], selected: p.employment === r[0] }, r[1]); }));
+    var risk = el('select', { id: 'p-risk' }, RISK.map(function (r) { return el('option', { value: r[0], selected: p.riskAttitude === r[0] }, r[1]); }));
+    form.appendChild(el('div', { class: 'grid-2' },
+      MP.field('Name', name), MP.field('Date of birth', dob, age != null ? 'Age ' + age : 'Used for pension ages'),
+      MP.field('Where you live', region, 'Scotland has different income tax'), MP.field('Yearly salary before tax', sal.wrap),
+      MP.field('Work', emp), MP.field('Attitude to investment risk', risk)));
+    form.appendChild(el('button', { class: 'btn btn-primary', type: 'submit', id: 'p-save' }, 'Save'));
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var v = MP.vault();
+      Object.assign(v.profile, { name: name.value.trim() || v.profile.name, dob: dob.value, region: region.value, salary: MP.num(sal.input.value), employment: emp.value, riskAttitude: risk.value });
+      MP.set('profile', v.profile);
+      MP.log('Updated your details');
+      MP.toast('Your details are saved.');
+      render();
+    });
+    return el('section', { class: 'card', 'aria-labelledby': 'h-about' }, el('h2', { id: 'h-about' }, 'About you'), form);
+  }
+
+  function accountCard() {
+    var me = MP.auth.current();
+    return el('section', { class: 'card' }, el('h2', null, 'Your account'),
+      el('p', { class: 'small muted' }, 'Signed in as ', el('strong', null, me.email), '. Your data is encrypted on this device.'),
+      el('div', { class: 'row' },
+        el('button', { class: 'btn btn-sm', type: 'button', id: 'backup', onclick: function () { MP.exportData(); MP.toast('Backup downloaded. Keep it somewhere safe: it is not encrypted.'); } }, 'Download backup'),
+        el('button', { class: 'btn btn-sm', type: 'button', id: 'restore', onclick: restore }, 'Import backup'),
+        el('button', { class: 'btn btn-sm', type: 'button', id: 'change-pw', onclick: changePw }, 'Change password'),
+        el('button', { class: 'btn btn-sm btn-danger', type: 'button', id: 'delete-acc', onclick: function () {
+          if (MP.confirm('Delete your account and every plan saved in it from this device? This cannot be undone.')) MP.auth.deleteAccount();
+        } }, 'Delete account')));
+  }
+
+  function restore() {
+    MP.files.pick('.json,application/json').then(function (files) {
+      if (!files[0]) return;
+      return MP.files.text(files[0]).then(function (txt) {
+        var obj; try { obj = JSON.parse(txt); } catch (e) { throw new Error('That file is not a Money Planner backup.'); }
+        if (!MP.confirm('Replace everything in this account with the backup?')) return;
+        MP.importData(obj); MP.log('Imported a backup'); MP.toast('Backup imported.'); render();
+      });
+    }).catch(function (e) { MP.toast(e.message); });
+  }
+
+  function changePw() {
+    var o = el('input', { type: 'password', id: 'pw-old', autocomplete: 'current-password' });
+    var n = el('input', { type: 'password', id: 'pw-new', autocomplete: 'new-password' });
+    var err = el('p', { class: 'callout danger', hidden: true, role: 'alert' });
+    var btn = el('button', { class: 'btn btn-primary', type: 'submit' }, 'Change password');
+    var form = el('form', null, MP.field('Current password', o), MP.field('New password', n, 'At least 10 characters'), err, btn);
+    var close = MP.modal(form, { title: 'Change password' });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault(); btn.disabled = true; err.hidden = true;
+      MP.auth.changePassword(o.value, n.value).then(function () { close(); MP.toast('Password changed.'); })
+        .catch(function (x) { err.textContent = x.message; err.hidden = false; btn.disabled = false; });
+    });
+  }
+
+  render();
+});
+</script>
+</body>
+</html>
