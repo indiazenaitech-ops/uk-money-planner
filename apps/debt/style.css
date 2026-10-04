@@ -1,0 +1,33 @@
+.stats { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.stats .value { overflow-wrap: anywhere; }
+.stats .value.big { font-size: clamp(1.5rem, 4vw, 1.9rem); color: var(--primary); }
+.stats.two { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); margin: 10px 0; }
+.stats.two .value { font-size: 1.15rem; }
+.grid-2.tight { gap: 0 12px; grid-template-columns: 1fr 1fr; align-items: end; }
+label.sub { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.pct-input { position: relative; }
+.pct-input::after { content: "%"; position: absolute; inset-inline-end: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.pct-input input { padding-inline-end: 28px; }
+.card h3 { margin-top: 2px; }
+
+.debt-list { display: flex; flex-direction: column; gap: 10px; }
+.debt-row { padding: 10px 12px; }
+.debt-top { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.debt-top .d-name { font-weight: 600; flex: 1; }
+.debt-top .d-del { min-width: 40px; min-height: 40px; flex: none; }
+.debt-nums { display: grid; gap: 8px; grid-template-columns: 1fr 1fr 1fr; }
+.debt-nums input { padding-inline: 8px; }
+.debt-nums .money-input input { padding-inline-start: 22px; }
+.debt-nums .money-input::before { inset-inline-start: 9px; }
+.debt-nums .pct-input input { padding-inline-end: 24px; }
+.debt-nums .pct-input::after { inset-inline-end: 8px; }
+
+.method.best { border-color: var(--success); }
+.method-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.payoff { margin: 10px 0 0; padding-inline-start: 22px; }
+.payoff li { padding: 3px 0; border-bottom: 1px dashed var(--border); }
+.payoff li > span:first-child { overflow-wrap: anywhere; }
+.payoff li > span:last-child { float: inline-end; margin-inline-start: 8px; font-variant-numeric: tabular-nums; }
+.payoff li::after { content: ""; display: block; clear: both; }
+.tips li + li { margin-top: 6px; }
+@media (max-width: 480px) { .tabs { gap: 0; } .tabs button { padding-inline: 8px; font-size: .95rem; } }
