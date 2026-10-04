@@ -216,3 +216,5 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
   .card { box-shadow: none; border-color: #bbb; break-inside: avoid; }
 }
 @media (max-width: 480px) { .mp-user { display: none; } .mp-brand small { display: none; } }
+:root.mp-embedded .mp-header, :root.mp-embedded .mp-footer, :root.mp-embedded #mp-back { display: none !important; }
+:root.mp-embedded .mp-crumb { justify-content: flex-end; padding-top: 10px; }

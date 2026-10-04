@@ -24,6 +24,28 @@ bank's CDN). There is no backend.
   authenticated API. Live email access (Gmail or Microsoft 365) needs an OAuth app registered by the
   institution. The inbox tool reads exported `.eml` files instead.
 
+## Live guide (optional, ElevenLabs)
+
+`shared/live-guide.js` adds a "Talk to your guide" button to every page when `MP_CONFIG.liveGuide.agentId` is set.
+It loads the ElevenLabs Agents widget (pinned in `config.js`) only after the customer agrees, and passes non-personal
+dynamic variables (knowledge level, Simple/Detailed, advice preference, current page). The customer's plan is shared only
+if they tick "Let the guide see my plan".
+
+The agent (ElevenLabs workspace: "Money Planner Guide", voice model Eleven v4) has a guidance-only system prompt, a
+knowledge base (how the app works, 2026/27 UK figures, glossary) and five client tools that this file implements:
+
+| Tool | What it does |
+|---|---|
+| `open_tool {tool_id}` | Opens a tool, the guided setup, home or the printable plan in a panel over the page, so the conversation continues |
+| `set_view {mode}` | Switches Simple/Detailed on the page and inside the panel |
+| `show_term {term}` | Shows the glossary meaning on screen and returns it to the agent |
+| `get_my_plan` | Returns priorities, plan steps, dreams and saved results, only with the customer's permission |
+| `read_screen` | Returns headings (and figures, with permission) of what is on screen |
+
+Agent privacy settings: voice recordings off, transcripts deleted after 30 days, prompt-injection and topic guardrails on.
+Before real customers use it, the institution needs its own data processing agreement with ElevenLabs and a Consumer Duty
+review, and should restrict the agent to its own domain (agent auth allowlist). Remove `agentId` to switch the guide off.
+
 ## Structure
 
 ```

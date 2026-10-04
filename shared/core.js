@@ -331,6 +331,30 @@
     return box;
   };
 
+  /* ---------- talking to the live guide (when this page runs inside its tool panel) ----------
+     The guide's panel may be cross-origin (file://), so it talks to us with postMessage. */
+  MP.screenText = function (includeFigures) {
+    var main = document.getElementById('app') || document.body;
+    var visible = function (n) { return n.offsetParent !== null; };
+    var heads = $$('h1, h2, h3', main).filter(visible).map(function (h) { return h.textContent.trim(); }).slice(0, 25);
+    var out = 'Screen: ' + document.title + '\nHeadings: ' + heads.join(' | ');
+    if (includeFigures) {
+      var stats = $$('.stat, .big-number, [aria-live]', main).filter(visible).map(function (n) { return n.textContent.replace(/\s+/g, ' ').trim(); }).filter(Boolean);
+      out += '\nResults shown: ' + stats.join(' | ').slice(0, 1800);
+    } else out += '\n(Figures are hidden because the customer has not let the guide see their plan.)';
+    return out;
+  };
+  if (window.parent !== window) {
+    // inside the guide's panel: the outer page already shows the header, footer and sign-out
+    document.documentElement.classList.add('mp-embedded');
+    window.addEventListener('message', function (e) {
+      var d = e.data;
+      if (e.source !== window.parent || !d || typeof d !== 'object' || !d.mp) return;
+      if (d.mp === 'setPrefs' && d.patch && typeof d.patch.detail === 'string') MP.setPrefs({ detail: d.patch.detail === 'detailed' ? 'detailed' : 'simple' });
+      if (d.mp === 'readScreen') e.source.postMessage({ mp: 'screen', id: d.id, text: MP.screenText(!!d.figures) }, '*');
+    });
+  }
+
   /* ---------- plain-English explanations ----------
      MP.term('isa') → a clickable term that shows its meaning. MP.explain('isa') → an inline explanation
      that only beginners see (hidden by CSS for other knowledge levels). Definitions live in shared/glossary.js. */
@@ -362,6 +386,12 @@
     return state.saving;
   }
   MP.flush = flush;
+  /* Re-read the vault from storage (another window, e.g. a tool panel, may have saved newer data). */
+  MP.refresh = function () {
+    var u = state.user && findUser(state.user.email);
+    if (!u || !state.key) return Promise.resolve(state.vault);
+    return decryptJSON(state.key, u.vault).then(function (v) { state.vault = migrate(v); applyPrefs(); return state.vault; }).catch(function () { return state.vault; });
+  };
   window.addEventListener('pagehide', function () { flush(); });
 
   /* Export / import of the decrypted vault so a customer can move to another device. */
@@ -432,6 +462,10 @@
       }
       document.body.appendChild(footer());
       startIdleWatch();
+      // the optional live guide lives in the top window only (tools it opens run in a panel iframe)
+      if (CFG.liveGuide && CFG.liveGuide.agentId && window.top === window && !opts.noGuide) {
+        document.head.appendChild(el('script', { src: MP.root() + 'shared/live-guide.js', defer: true }));
+      }
       return state.vault;
     });
   };
