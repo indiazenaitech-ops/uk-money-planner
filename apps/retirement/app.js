@@ -22,39 +22,50 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
   var RISK_TO_SCEN = { cautious: 'low', balanced: 'mid', adventurous: 'high' };
 
   var profile = MP.profile();
-  var dobAge = profile.dob ? UK.age(profile.dob) : null;
-  if (dobAge != null && (dobAge < 16 || dobAge > 100)) dobAge = null;
+  // Answers from the guided setup (guide.html) fill gaps in the profile.
+  function answers() { var a = MP.prefs().answers; return a && typeof a === 'object' ? a : {}; }
+  var dob = profile.dob || answers().dob || '';
+  var dobAge = dob ? UK.age(dob) : null;
+  if (dobAge != null && (dobAge < 16 || dobAge > 100 || isNaN(dobAge))) dobAge = null;
+  function knownSalary() { return profile.salary > 0 ? +profile.salary : +answers().salary > 0 ? +answers().salary : 0; }
 
+  /* Starting values. With no saved plan, these use the guided setup answers (retireAge, pensionTotal,
+     riskReaction) and the profile (salary, date of birth, region), then sensible UK examples. */
   function defaults() {
+    var A = answers();
     var age = dobAge != null ? dobAge : 40;
+    var pensionTotal = MP.clamp(+A.pensionTotal || 0, 0, 1e9);
     var s = {
       age: age,
       retireAge: 0,
-      pots: [{ id: MP.uid(), name: 'Workplace pension', type: 'workplace', value: 40000 }],
-      salary: profile.salary > 0 ? profile.salary : 35000,
+      pots: pensionTotal > 0 ? [{ id: MP.uid(), name: 'Your pensions', type: 'workplace', value: pensionTotal }] :
+        [{ id: MP.uid(), name: 'Workplace pension', type: 'workplace', value: 40000 }],
+      salary: knownSalary() || 35000,
       empPct: P.autoEnrolment.employee * 100,
       erPct: P.autoEnrolment.employer * 100,
       basis: 'qualifying',
-      scenario: RISK_TO_SCEN[profile.riskAttitude] || 'mid',
+      scenario: RISK_TO_SCEN[A.riskReaction] || RISK_TO_SCEN[profile.riskAttitude] || 'mid',
       charges: 0.5,
       niYears: Math.max(0, Math.min(35, age - 21)),
       niFuture: null,
+      niUnsure: false,
       household: 'single',
       level: 'moderate',
       target: PLSA.single.moderate,
       partnerIncome: Math.round(SP.fullWeekly * 52),
       takeLump: true,
-      region: profile.region || 'england',
+      region: profile.region || A.region || 'england',
       goalId: null
     };
-    s.retireAge = MP.clamp(Math.ceil(spaFor(s.age)), minAccessAge(s.age), 75);
+    var want = Math.round(+A.retireAge || +profile.retireAge || 0), lo = Math.max(minAccessAge(s.age), s.age);
+    s.retireAge = MP.clamp(want >= 40 && want <= 100 ? want : Math.ceil(spaFor(s.age)), lo, Math.max(75, lo));
     return s;
   }
 
   /* ---------- ages ---------- */
   // A date of birth to use for the pension age rules: the real one if it matches the age entered.
   function birthDate(age) {
-    if (profile.dob && UK.age(profile.dob) === age) return new Date(profile.dob);
+    if (dob && UK.age(dob) === age) return new Date(dob);
     var d = new Date(); d.setFullYear(d.getFullYear() - age); d.setMonth(d.getMonth() - 6);
     return d;
   }
@@ -97,6 +108,9 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     return b === 'additional' ? 0.45 : b === 'higher' ? 0.40 : 0.20;
   }
   function netRate() { return (UK.R.growth[s.scenario] || UK.R.growth.mid) - MP.clamp(+s.charges || 0, 0, 5) / 100; }
+  // "I'm not sure" about National Insurance years: under 45 we assume the full State Pension (there is
+  // usually time to fill gaps); from 45 we ask the customer to check their record instead.
+  function assumeFullSP() { return !!s.niUnsure && s.age < 45; }
   function autoNiFuture(retireAge, spa) { return Math.max(0, Math.floor(Math.min(retireAge, spa) - s.age)); }
   function tax(gross) { return UK.incomeTax(Math.max(0, gross), s.region).tax; }
   // Level yearly withdrawal, taken at the start of each year, that empties the pot after n years.
@@ -124,6 +138,8 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     var spa = spaFor(s.age);
     var niFuture = s.niFuture == null || s.niFuture === '' ? autoNiFuture(ra, spa) : Math.max(0, +s.niFuture || 0);
     var niTotal = Math.max(0, +s.niYears || 0) + niFuture;
+    var niAssumed = assumeFullSP();
+    if (niAssumed) niTotal = Math.max(niTotal, SP.qualifyingYearsFull);
     var spWeekly = niTotal >= SP.qualifyingYearsMin ? SP.fullWeekly * Math.min(SP.qualifyingYearsFull, niTotal) / SP.qualifyingYearsFull : 0;
     var spYear = spWeekly * 52;
     var taxableDraw = draw * (1 - taxFreeShare);
@@ -133,7 +149,7 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     return {
       retireAge: ra, years: years, rate: rate, rr: rr, contrib: c, fv: fv, defl: defl, potNom: potNom, potReal: potReal,
       lumpNom: lumpNom, lumpReal: lumpReal, drawPot: drawPot, draw: draw, taxFreeShare: taxFreeShare, spa: spa,
-      niFuture: niFuture, niTotal: niTotal, spWeekly: spWeekly, spYear: spYear, partner: partner,
+      niFuture: niFuture, niTotal: niTotal, niAssumed: niAssumed, spWeekly: spWeekly, spYear: spYear, partner: partner,
       taxPre: taxPre, taxPost: taxPost, netPre: netPre, netPost: netPost,
       target: Math.max(0, +s.target || 0), gap: Math.max(0, +s.target || 0) - netPost,
       bridging: ra < spa, bridgeYears: Math.max(0, spa - ra)
@@ -158,8 +174,11 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     return need == null ? null : need;
   }
 
-  /* ---------- render ---------- */
-  var resultsBox, chartsBox, gapBox;
+  /* ---------- render ----------
+     Simple view (the default) shows the essentials: age, retirement age, one total for your pensions,
+     what you and your employer pay, State Pension years and a lifestyle. Everything else is marked
+     .detail-only and keeps its saved or default value, so Simple still gives a complete answer. */
+  var resultsBox, chartsBox, gapBox, adviceBox, redrawPots;
 
   function render() {
     main.innerHTML = '';
@@ -173,11 +192,15 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     split.appendChild(el('div', { class: 'stack' }, aboutCard(), potsCard(), contribCard(), stateCard(), targetCard()));
     resultsBox = el('section', { class: 'card', 'aria-labelledby': 'h-results' });
     gapBox = el('div', { 'aria-live': 'polite', id: 'gap-box' });
+    adviceBox = el('div', { id: 'advice-box' });
     chartsBox = el('section', { class: 'card', 'aria-labelledby': 'h-charts' });
-    split.appendChild(el('div', { class: 'stack' }, resultsBox, gapBox, chartsBox, assumptions(), howTo()));
+    var assume = assumptions(); assume.classList.add('detail-only');
+    split.appendChild(el('div', { class: 'stack' }, resultsBox, gapBox, adviceBox, chartsBox, assume, howTo()));
     main.appendChild(split);
+    drawAdvice();
     update(true);
   }
+  function drawAdvice() { if (!adviceBox) return; adviceBox.innerHTML = ''; adviceBox.appendChild(MP.adviceCard('pension')); }
 
   function numInput(id, value, attrs) {
     var i = el('input', Object.assign({ type: 'number', id: id, inputmode: 'decimal', value: value == null ? '' : value, step: 'any' }, attrs || {}));
@@ -189,6 +212,14 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
       else s[key] = MP.clamp(MP.num(input.value), lo, hi);
       update();
     });
+  }
+  /* MP.field labels the wrapper of a money input; point the label at the input itself. */
+  function field(label, control, hint, cls) {
+    var f = MP.field(label, control, hint);
+    var inner = control.matches && control.matches('input, select, textarea') ? null : MP.$('input, select', control);
+    if (inner) MP.$('label', f).setAttribute('for', inner.id);
+    if (cls) f.className += ' ' + cls;
+    return f;
   }
 
   function aboutCard() {
@@ -206,9 +237,9 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     var spa = spaFor(s.age), mina = minAccessAge(s.age);
     return el('section', { class: 'card', 'aria-labelledby': 'h-about' },
       el('h2', { id: 'h-about' }, 'About you'),
-      el('div', { class: 'grid-2 tight' },
-        MP.field('Your age', age, dobAge != null && dobAge === s.age ? 'From your date of birth' : 'Add your date of birth on the home page for exact ages'),
-        MP.field('Where you live', region, 'For income tax')),
+      el('div', { class: 'grid-2 tight about-grid' },
+        field('Your age', age, dobAge != null && dobAge === s.age ? 'From your date of birth' : 'Add your date of birth on the home page for exact ages'),
+        field('Where you live', region, 'For income tax', 'detail-only')),
       el('div', { class: 'field' },
         el('div', { class: 'slider-head' }, el('label', { for: 'retire-age' }, 'When do you want to retire?'), out),
         slider,
@@ -230,8 +261,8 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
         var val = MP.moneyInput({ id: 'pot-value-' + i, value: p.value, class: 'pot-value' });
         val.input.addEventListener('input', function () { p.value = MP.clamp(MP.num(val.input.value), 0, 1e9); update(); });
         list.appendChild(el('div', { class: 'pot panel' },
-          MP.field('Name', name),
-          el('div', { class: 'pot-row' }, MP.field('Type', type), MP.field('Value today', val.wrap)),
+          field('Name', name),
+          el('div', { class: 'pot-row' }, field('Type', type), field('Value today', val.wrap)),
           el('div', { class: 'pot-foot' },
             el('button', { class: 'btn btn-sm btn-ghost remove-pot', type: 'button', 'aria-label': 'Remove ' + (p.name || 'pension'), onclick: function () {
               s.pots.splice(i, 1); draw(); update();
@@ -239,15 +270,28 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
       });
     }
     draw();
+    redrawPots = draw;
+    // Simple view: one box for everything in your pensions. It edits the first pot.
+    var total = MP.moneyInput({ id: 'pot-total', value: Math.round(potsTotal() * 100) / 100 });
+    total.input.addEventListener('input', function () {
+      var v = MP.clamp(MP.num(total.input.value), 0, 1e9);
+      if (!s.pots.length) { s.pots.push({ id: MP.uid(), name: 'Your pensions', type: 'workplace', value: v }); draw(); }
+      else { s.pots[0].value = v; var first = MP.$('#pot-value-0'); if (first) first.value = v; }
+      update();
+    });
     return el('section', { class: 'card', 'aria-labelledby': 'h-pots' },
       el('h2', { id: 'h-pots' }, 'Your pensions so far'),
-      el('p', { class: 'small muted' }, 'Add each workplace pension, personal pension or SIPP. Find old ones with the free government Pension Tracing Service.'),
-      list,
-      el('button', { class: 'btn btn-sm', type: 'button', id: 'add-pot', style: { marginTop: '10px' }, onclick: function () {
-        s.pots.push({ id: MP.uid(), name: 'Pension ' + (s.pots.length + 1), type: 'personal', value: 0 }); draw(); update();
-        var last = MP.$('#pot-value-' + (s.pots.length - 1)); if (last) last.focus();
-      } }, '＋ Add a pension'),
-      el('p', { class: 'small', style: { margin: '10px 0 0' } }, 'Total: ', el('strong', { id: 'pots-total' }, MP.money(potsTotal()))));
+      MP.explain('pension'),
+      el('div', { class: 'simple-only' },
+        field('All your pensions added together', total.wrap, el('span', { id: 'pot-total-hint' }, 'Check your latest pension statements. Leave it at 0 if you are just starting.'))),
+      el('div', { class: 'detail-only' },
+        el('p', { class: 'small muted' }, 'Add each workplace pension, personal pension or SIPP. Find old ones with the free government Pension Tracing Service.'),
+        list,
+        el('button', { class: 'btn btn-sm', type: 'button', id: 'add-pot', style: { marginTop: '10px' }, onclick: function () {
+          s.pots.push({ id: MP.uid(), name: 'Pension ' + (s.pots.length + 1), type: 'personal', value: 0 }); draw(); update();
+          var last = MP.$('#pot-value-' + (s.pots.length - 1)); if (last) last.focus();
+        } }, '＋ Add a pension'),
+        el('p', { class: 'small', style: { margin: '10px 0 0' } }, 'Total: ', el('strong', { id: 'pots-total' }, MP.money(potsTotal())))));
   }
 
   function contribCard() {
@@ -266,16 +310,22 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     lump.onchange = function () { s.takeLump = lump.checked; update(); };
     return el('section', { class: 'card', 'aria-labelledby': 'h-contrib' },
       el('h2', { id: 'h-contrib' }, 'Paying in'),
-      MP.field('Yearly salary before tax', sal.wrap, profile.salary > 0 ? 'From your profile' : 'An example. Add your salary on the home page.'),
-      el('div', { class: 'grid-2 tight' }, MP.field('You pay (%)', emp), MP.field('Employer pays (%)', er)),
-      el('div', { class: 'field' }, el('span', { class: 'label' }, 'Worked out on'), basis,
+      MP.explain('auto-enrolment'),
+      field('Yearly salary before tax', sal.wrap, knownSalary() > 0 ? 'From your profile' : 'An example. Add your salary on the home page.'),
+      el('div', { class: 'grid-2 tight' }, field('You pay (%)', emp), field('Employer pays (%)', er)),
+      el('p', { class: 'small muted simple-only', style: { margin: '-4px 0 12px' } }, 'The ', MP.term('auto-enrolment', 'auto-enrolment'), ' minimum is 5% from you and 3% from your employer.'),
+      el('div', { class: 'field detail-only' }, el('span', { class: 'label' }, 'Worked out on'), basis,
         el('span', { class: 'hint' }, 'Auto-enrolment minimum: 5% from you and 3% from your employer on "qualifying earnings", the part of pay between ' + MP.money(P.autoEnrolment.lowerQE) + ' and ' + MP.money(P.autoEnrolment.upperQE) + '. Many employers pay on your full salary.')),
       el('p', { class: 'small callout', id: 'contrib-out', 'aria-live': 'polite' }),
-      el('hr'),
-      el('div', { class: 'field' }, el('span', { class: 'label' }, 'Investment growth a year (before charges)'), scen,
-        el('span', { class: 'hint' }, 'Investments can fall as well as rise. Try all three.')),
-      MP.field('Yearly charges (%)', charges, 'Workplace pensions usually charge 0.3% to 0.75%. Check your yearly statement.'),
-      el('label', { class: 'check' }, lump, 'Take 25% tax-free cash as a lump sum when I retire'));
+      MP.explain('tax-relief'),
+      el('p', { class: 'tiny muted simple-only', id: 'simple-assume', style: { margin: '8px 0 0' } }),
+      el('div', { class: 'detail-only' },
+        el('hr'),
+        el('div', { class: 'field' }, el('span', { class: 'label' }, 'Investment growth a year (before charges)'), scen,
+          el('span', { class: 'hint' }, 'Investments can fall as well as rise. Try all three.')),
+        field(el('span', null, 'Yearly ', MP.term('charges', 'charges'), ' (%)'), charges, 'Workplace pensions usually charge 0.3% to 0.75%. Check your yearly statement.'),
+        el('label', { class: 'check' }, lump, 'Take 25% tax-free cash as a lump sum when I retire'),
+        MP.explain('tax-free-lump-sum')));
   }
 
   function stateCard() {
@@ -283,12 +333,17 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     onNum(yrs, 'niYears', 0, 60);
     var fut = numInput('ni-future', s.niFuture, { min: 0, max: 60, step: 1, inputmode: 'numeric' });
     onNum(fut, 'niFuture', 0, 60, true);
+    var unsure = el('input', { type: 'checkbox', id: 'ni-unsure', checked: !!s.niUnsure });
+    unsure.onchange = function () { s.niUnsure = unsure.checked; update(); };
     return el('section', { class: 'card', 'aria-labelledby': 'h-state' },
       el('h2', { id: 'h-state' }, 'State Pension'),
-      el('p', { class: 'small muted' }, 'You need ' + SP.qualifyingYearsMin + ' qualifying years of National Insurance to get any State Pension, and ' + SP.qualifyingYearsFull + ' for the full ' + MP.money(SP.fullWeekly, true) + ' a week.'),
-      el('div', { class: 'grid-2 tight' },
-        MP.field('Years so far', yrs, 'See your record at gov.uk/check-state-pension'),
-        MP.field('Years to come', fut, 'Leave blank to count each year until you stop work')),
+      el('p', { class: 'small muted' }, 'You need ' + SP.qualifyingYearsMin + ' ', MP.term('qualifying-years', 'qualifying years'), ' of National Insurance to get any State Pension, and ' + SP.qualifyingYearsFull + ' for the full ' + MP.money(SP.fullWeekly, true) + ' a week.'),
+      MP.explain('state-pension'),
+      el('div', { class: 'grid-2 tight ni-grid' },
+        field('Years so far', yrs, 'See your record at gov.uk/check-state-pension'),
+        field('Years to come', fut, 'Leave blank to count each year until you stop work', 'detail-only')),
+      el('label', { class: 'check' }, unsure, 'I\'m not sure how many years I have'),
+      el('div', { id: 'ni-ask', 'aria-live': 'polite' }),
       el('p', { class: 'small', id: 'ni-out', style: { margin: 0 } }));
   }
 
@@ -307,10 +362,15 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     function markLevel() { MP.$$('.level', levels).forEach(function (b) { b.setAttribute('aria-pressed', String(b.id === 'level-' + s.level)); }); }
     var partner = MP.moneyInput({ id: 'partner-income', value: s.partnerIncome });
     onNum(partner.input, 'partnerIncome', 0, 1e7);
-    var partnerField = MP.field('Your partner\'s yearly income in retirement, after tax', partner.wrap, 'Their pensions and State Pension. We have used a full State Pension as an example.');
-    partnerField.style.display = s.household === 'couple' ? '' : 'none';
+    var partnerField = field('Your partner\'s yearly income in retirement, after tax', partner.wrap, 'Their pensions and State Pension. We have used a full State Pension as an example.', 'detail-only');
+    var partnerNote = el('p', { class: 'small muted simple-only', id: 'partner-note' });
+    function showPartner(v) {
+      partnerField.style.display = v === 'couple' ? '' : 'none';
+      partnerNote.style.display = v === 'couple' ? '' : 'none';
+    }
+    showPartner(s.household);
     var hh = MP.seg([{ value: 'single', label: 'Just me' }, { value: 'couple', label: 'Me and a partner' }], s.household, function (v) {
-      s.household = v; partnerField.style.display = v === 'couple' ? '' : 'none';
+      s.household = v; showPartner(v);
       if (s.level !== 'custom') { s.target = PLSA[v][s.level]; target.input.value = s.target; }
       drawLevels(); update();
     }, 'Who is retiring');
@@ -321,7 +381,8 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
       el('div', { class: 'field' }, el('span', { class: 'label' }, 'Planning for'), hh),
       el('div', { class: 'field' }, el('span', { class: 'label' }, 'Pick a lifestyle'), levels,
         el('span', { class: 'hint' }, 'PLSA Retirement Living Standards (2024): yearly spending after tax, outside London. An assumption, not a promise.')),
-      MP.field('Yearly income you want, after tax, in today\'s money', target.wrap),
+      field('Yearly income you want, after tax, in today\'s money', target.wrap, null, 'detail-only'),
+      partnerNote,
       partnerField);
   }
 
@@ -343,8 +404,29 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
         (c.total > P.annualAllowance ? ' This is over the ' + MP.money(P.annualAllowance) + ' yearly allowance, so tax may be due.' : '')));
     }
     var no = MP.$('#ni-out');
-    if (no) no.textContent = 'That makes ' + m.niTotal + ' qualifying years' + (m.niTotal > SP.qualifyingYearsFull ? ' (only ' + SP.qualifyingYearsFull + ' count)' : '') + ': about ' + MP.money(m.spWeekly, true) + ' a week' + (m.niTotal < SP.qualifyingYearsMin ? ' (under ' + SP.qualifyingYearsMin + ' years, so no State Pension yet).' : '.');
+    if (no) no.textContent = m.niAssumed ? 'We have assumed you will get the full State Pension: about ' + MP.money(m.spWeekly, true) + ' a week.' :
+      'That makes ' + m.niTotal + ' qualifying years' + (m.niTotal > SP.qualifyingYearsFull ? ' (only ' + SP.qualifyingYearsFull + ' count)' : '') + ': about ' + MP.money(m.spWeekly, true) + ' a week' + (m.niTotal < SP.qualifyingYearsMin ? ' (under ' + SP.qualifyingYearsMin + ' years, so no State Pension yet).' : '.');
+    var ny = MP.$('#ni-years'); if (ny) ny.disabled = m.niAssumed;
+    var ask = MP.$('#ni-ask');
+    if (ask) {
+      ask.innerHTML = '';
+      if (s.niUnsure && m.niAssumed) ask.appendChild(el('p', { class: 'small callout', id: 'ni-assumed' }, 'You are under 45, so most people still have time to build 35 years through work, or credits for caring or looking for work. Check your record when you can.'));
+      else if (s.niUnsure) ask.appendChild(el('p', { class: 'small callout warning', id: 'ni-check' }, el('strong', null, 'Please check your record. '), 'At ' + s.age + ', gaps can make a big difference. It takes about 5 minutes at ',
+        el('a', { href: 'https://www.gov.uk/check-state-pension', target: '_blank', rel: 'noopener' }, 'gov.uk/check-state-pension'), '. Then enter your years above. Until then we use our estimate of ' + (Math.max(0, +s.niYears || 0)) + ' years.'));
+    }
     var pt = MP.$('#pots-total'); if (pt) pt.textContent = MP.money(potsTotal());
+    var tot = MP.$('#pot-total'), many = s.pots.length > 1;
+    if (tot) {
+      tot.disabled = many;
+      if (document.activeElement !== tot) tot.value = Math.round(potsTotal() * 100) / 100;
+      var th = MP.$('#pot-total-hint');
+      if (th) th.textContent = many ? 'Made up of ' + s.pots.length + ' pensions. Switch to Detailed to change them one by one.' : 'Check your latest pension statements. Leave it at 0 if you are just starting.';
+    }
+    var sa = MP.$('#simple-assume');
+    if (sa) sa.textContent = 'We assume ' + (SCEN.filter(function (o) { return o.value === s.scenario; })[0] || SCEN[1]).label.toLowerCase() + ' growth of ' + MP.pct(UK.R.growth[s.scenario] || UK.R.growth.mid) +
+      ' a year, charges of ' + MP.pct((+s.charges || 0) / 100, 2) + (s.takeLump ? ', and that you take 25% as tax-free cash' : '') + '. Switch to Detailed to change these.';
+    var pn = MP.$('#partner-note');
+    if (pn) pn.textContent = 'We include ' + MP.money(Math.max(0, +s.partnerIncome || 0)) + ' a year after tax for your partner. Switch to Detailed to change it.';
 
     drawResults(m);
     drawGap(m);
@@ -369,11 +451,11 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     live.appendChild(el('p', { class: 'tiny muted' }, 'Target: ' + MP.money(m.target) + ' a year after tax' + (m.partner ? ', including ' + MP.money(m.partner) + ' from your partner' : '') + '.'));
     live.appendChild(el('div', { class: 'stats' },
       stat('Pension pot at ' + m.retireAge, 'pot-real', m.potReal, MP.money(m.potNom) + ' in future pounds'),
-      stat('Tax-free lump sum', 'lump-sum', m.lumpReal, m.lumpNom >= P.lumpSumAllowance - 0.5 ? 'capped at the ' + MP.money(P.lumpSumAllowance) + ' allowance' : '25% of your pot' + (s.takeLump ? ', taken as cash' : ', taken bit by bit')),
-      stat('Pension income a year', 'pot-income', m.draw, 'before tax, lasts to age ' + DRAW_TO_AGE),
+      stat('Tax-free lump sum', 'lump-sum', m.lumpReal, m.lumpNom >= P.lumpSumAllowance - 0.5 ? 'capped at the ' + MP.money(P.lumpSumAllowance) + ' allowance' : '25% of your pot' + (s.takeLump ? ', taken as cash' : ', taken bit by bit'), 'detail-only'),
+      stat('Pension income a year', 'pot-income', m.draw, 'before tax, lasts to age ' + DRAW_TO_AGE, 'detail-only'),
       stat('State Pension a year', 'sp-yearly', m.spYear, 'from age ' + ageLabel(m.spa)),
-      stat('Income tax a year', 'tax-yearly', m.taxPost, 'from State Pension age'),
-      stat('Total after tax', 'net-total', m.netPost - m.partner, m.partner ? 'yours only, before adding your partner' : 'pension + State Pension − tax')));
+      stat('Income tax a year', 'tax-yearly', m.taxPost, 'from State Pension age', 'detail-only'),
+      stat('Total after tax', 'net-total', m.netPost - m.partner, m.partner ? 'yours only, before adding your partner' : 'pension + State Pension − tax', 'detail-only')));
     resultsBox.appendChild(live);
     resultsBox.appendChild(el('div', { class: 'row no-print', style: { marginTop: '14px' } },
       el('button', { class: 'btn btn-accent', type: 'button', id: 'save-dream', onclick: function () { saveDream(m); } }, '🏖️ Save as a dream'),
@@ -404,7 +486,7 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
 
   function drawCharts(m) {
     chartsBox.innerHTML = '';
-    chartsBox.appendChild(el('h2', { id: 'h-charts' }, 'Your pot and income by age'));
+    chartsBox.appendChild(el('h2', { id: 'h-charts' }, 'Your pot', el('span', { class: 'detail-only' }, ' and income'), ' by age'));
     var ages = [], pot = [], income = [], target = [], state = [], incAges = [];
     var last = Math.max(CHART_TO_AGE, m.retireAge + 5);
     // saving years: balance at each birthday, in today's money
@@ -425,13 +507,15 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
     var cw = chartsBox.clientWidth && chartsBox.clientWidth < 560 ? { width: 400, height: 260 } : {};
     chartsBox.appendChild(MP.lineChart({ width: cw.width, height: cw.height, series: [{ name: 'Pension pot', color: '--c1', values: pot, area: true }], labels: ages.map(String), marker: { index: ri, label: 'Retire at ' + m.retireAge }, label: 'Pension pot by age, peaking at ' + MP.money(m.potReal) + ' at ' + m.retireAge }));
     var spIdx = Math.max(0, Math.ceil(m.spa) - m.retireAge);
-    chartsBox.appendChild(el('h3', { style: { marginTop: '18px' } }, 'Yearly income after tax, in today\'s money'));
-    chartsBox.appendChild(MP.lineChart({
+    var incomeBox = el('div', { class: 'detail-only', id: 'income-chart' });
+    chartsBox.appendChild(incomeBox);
+    incomeBox.appendChild(el('h3', { style: { marginTop: '18px' } }, 'Yearly income after tax, in today\'s money'));
+    incomeBox.appendChild(MP.lineChart({
       width: cw.width, height: cw.height,
       series: [{ name: 'Your income', color: '--c2', values: income, area: true }, { name: 'State Pension', color: '--c4', values: state }, { name: 'Target', color: '--c5', values: target, dash: true }],
       labels: incAges, marker: spIdx < income.length ? { index: spIdx, label: 'State Pension ' + ageLabel(m.spa) } : null, label: 'Yearly income by age in retirement'
     }));
-    chartsBox.appendChild(el('p', { class: 'tiny muted', style: { marginTop: '8px' } }, 'Your pension is spread so it runs out at ' + DRAW_TO_AGE + '. After that you would rely on the State Pension. Many people live longer: an annuity can pay an income for life.'));
+    incomeBox.appendChild(el('p', { class: 'tiny muted', style: { marginTop: '8px' } }, 'Your pension is spread so it runs out at ' + DRAW_TO_AGE + '. After that you would rely on the State Pension. Many people live longer: an annuity can pay an income for life.'));
   }
 
   function assumptions() {
@@ -496,6 +580,8 @@ MP.page({ id: 'retirement', title: 'Retirement planner' }).then(function () {
   }
 
   MP.onTheme(function () { drawCharts(model()); });
+  // Advice wording follows the advice preference; Simple/Detailed and knowledge level are handled by CSS.
+  MP.onPrefs(function () { drawAdvice(); });
   var lastW = window.innerWidth, rt;
   window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (Math.abs(window.innerWidth - lastW) > 40) { lastW = window.innerWidth; drawCharts(model()); } }, 200); });
   render();

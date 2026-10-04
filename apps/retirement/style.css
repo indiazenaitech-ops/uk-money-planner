@@ -24,3 +24,6 @@
 @media (min-width: 760px) { .jump { display: none; } }
 /* shared .btn:hover overrides the accent background but keeps white text; keep it readable */
 .btn-accent:hover { background: var(--accent); filter: brightness(.92); }
+/* Simple view hides the second field in these rows, so let the first one use the full width. */
+:root[data-detail="simple"] .about-grid, :root[data-detail="simple"] .ni-grid { grid-template-columns: 1fr; }
+:root[data-detail="simple"] .about-grid input, :root[data-detail="simple"] .ni-grid input { max-width: 220px; }

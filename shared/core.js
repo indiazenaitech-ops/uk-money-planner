@@ -478,8 +478,10 @@
 
   /* Labelled form field. MP.field('Monthly amount', input, 'hint') */
   MP.field = function (label, input, hint) {
-    if (!input.id) input.id = 'f-' + uid();
-    return el('div', { class: 'field' }, el('label', { for: input.id }, label), input, hint ? el('span', { class: 'hint' }, hint) : null);
+    // point the label at the real control, even when it is wrapped (e.g. MP.moneyInput().wrap)
+    var ctl = /^(INPUT|SELECT|TEXTAREA)$/.test(input.tagName) ? input : (input.querySelector && input.querySelector('input, select, textarea')) || input;
+    if (!ctl.id) ctl.id = 'f-' + uid();
+    return el('div', { class: 'field' }, el('label', { for: ctl.id }, label), input, hint ? el('span', { class: 'hint' }, hint) : null);
   };
   MP.moneyInput = function (attrs) {
     var inp = el('input', Object.assign({ type: 'number', inputmode: 'decimal', min: '0', step: 'any' }, attrs || {}));

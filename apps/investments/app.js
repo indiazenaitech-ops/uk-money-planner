@@ -20,12 +20,22 @@ MP.page({ id: 'investments', title: 'Investment growth' }).then(function () {
       ride: 'The bumpiest ride: big rises and big falls. Only suits money you will not need for many years.' }
   };
 
+  function answers() { var a = MP.prefs().answers; return a && typeof a === 'object' ? a : {}; }
+  /* Starting values: risk comes from the guided setup (riskReaction) or About you (riskAttitude). */
   function defaults() {
-    var risk = MP.profile().riskAttitude;
+    var risk = RISK[answers().riskReaction] ? answers().riskReaction : MP.profile().riskAttitude;
     return { start: 1000, monthly: 250, escalate: 0, years: 20, wrapper: 'isa', charges: 0.6, real: false, risk: RISK[risk] ? risk : 'balanced', goal: '', showTable: false };
   }
   var s = Object.assign(defaults(), MP.get('tools.investments', {}));
   var refs = {};
+  /* MP.field labels the wrapper of a money input; point the label at the input itself. */
+  function field(label, control, hint, cls) {
+    var f = MP.field(label, control, hint);
+    var inner = control.matches && control.matches('input, select, textarea') ? null : MP.$('input, select', control);
+    if (inner) MP.$('label', f).setAttribute('for', inner.id);
+    if (cls) f.className += ' ' + cls;
+    return f;
+  }
 
   function yearsUntil(date) { var d = new Date(date); return isNaN(d) ? 0 : (d - new Date()) / (365.25 * 864e5); }
   function band() { var p = MP.profile(); return +p.salary > 0 ? UK.taxBand(+p.salary) : 'unknown'; }
@@ -109,20 +119,30 @@ MP.page({ id: 'investments', title: 'Investment growth' }).then(function () {
     real.onchange = function () { s.real = real.checked; changed(); };
     var risk = MP.seg(Object.keys(RISK).map(function (k) { return { value: k, label: RISK[k].label }; }), s.risk, function (k) { s.risk = k; changed(); }, 'Your attitude to risk');
     risk.id = 'inv-risk';
+    // Guided setup said they have never invested: a gentle first step (beginners only, via .explain).
+    var newTip = answers().investExp === 'never' ? MP.explain(null, 'New to investing? Start small, for example £25 to £50 a month, in a stocks and shares ISA so you pay no tax on growth, and think of it as money for 5 years or more.') : null;
+    if (newTip) newTip.id = 'inv-new-tip';
+    refs.simpleNote = el('p', { class: 'tiny muted simple-only', id: 'inv-simple-note', style: { margin: '0 0 10px' } });
 
     return el('section', { class: 'card', 'aria-labelledby': 'h-inputs' },
       el('h2', { id: 'h-inputs' }, 'Your investing'),
+      MP.explain('investing'),
+      newTip,
       el('div', { class: 'grid-2 tight' },
-        MP.field('Lump sum now', start.wrap),
-        MP.field('Each month', monthly.wrap)),
-      MP.field('Raise the monthly amount each year by (%)', esc, 'For example 3% to keep up with pay rises. 0 keeps it the same.'),
+        field('Lump sum now', start.wrap),
+        field('Each month', monthly.wrap)),
+      field('Raise the monthly amount each year by (%)', esc, 'For example 3% to keep up with pay rises. 0 keeps it the same.', 'detail-only'),
       el('div', { class: 'field' },
         el('div', { class: 'years-head' }, el('label', { for: 'inv-years' }, 'How many years?'), yearsOut), years),
-      MP.field('Where will you invest?', wrapper),
-      MP.field('Yearly charges (%)', charges, 'Platform fee plus fund fee added together. ' + MP.pct(0.006) + ' is a typical example.'),
-      el('div', { class: 'field' }, el('span', { class: 'label' }, 'Your attitude to risk'), risk,
+      field('Where will you invest?', wrapper, el('span', null, 'A ', MP.term('ss-isa', 'stocks and shares ISA'), ' means no tax on growth or income.')),
+      field(el('span', null, 'Yearly ', MP.term('charges', 'charges'), ' (%)'), charges, 'Platform fee plus fund fee added together. ' + MP.pct(0.006) + ' is a typical example.', 'detail-only'),
+      el('div', { class: 'field' }, el('span', { class: 'label' }, 'Your ', MP.term('risk-attitude', 'attitude to risk')), risk,
         el('span', { class: 'hint' }, 'Taken from About you on the home page. Change it here to compare.')),
-      el('label', { class: 'check' }, real, 'Show in today\'s money (prices rising ' + MP.pct(R.inflation) + ' a year)'),
+      MP.explain('risk-attitude'),
+      refs.simpleNote,
+      el('div', { class: 'detail-only' },
+        el('label', { class: 'check' }, real, 'Show in today\'s money (prices rising ' + MP.pct(R.inflation) + ' a year)'),
+        MP.explain('inflation')),
       el('div', { class: 'row', style: { marginTop: '8px' } },
         el('button', { class: 'btn btn-primary', type: 'button', id: 'inv-save', onclick: function () {
           save(); MP.log('Saved an investment plan: ' + MP.money(s.monthly) + '/month for ' + s.years + ' years'); MP.toast('Plan saved.');
@@ -211,8 +231,8 @@ MP.page({ id: 'investments', title: 'Investment growth' }).then(function () {
         el('div', { class: 'stat-grid' },
           stat(paidLabel, MP.money(paidVal), 'out-paid', s.wrapper === 'sipp' ? 'You pay ' + MP.money(r.mid.mine) + ', tax relief adds ' + MP.money(r.mid.paid - r.mid.mine) : null),
           stat('Growth (mid)', MP.money(v(r.mid.bal, Y) - paidVal), 'out-growth'),
-          stat('Charges cost you (mid)', MP.money(v(r.feeCost, Y)), 'out-charges', 'Including the growth those fees would have earned'),
-          stat('Mid in today\'s money', MP.money(r.realMid), 'out-real', 'What it could buy at today\'s prices')),
+          stat('Charges cost you (mid)', MP.money(v(r.feeCost, Y)), 'out-charges', 'Including the growth those fees would have earned', 'detail-only'),
+          stat('Mid in today\'s money', MP.money(r.realMid), 'out-real', 'What it could buy at today\'s prices', 'detail-only')),
         el('p', { class: 'small muted', style: { margin: '12px 0 0' } }, 'Growth rates are before charges of ' + MP.pct(s.charges / 100, 2) +
           ' a year. They are illustrations, not predictions: real returns go up and down and could be lower than the low scenario.'))));
 
@@ -233,18 +253,21 @@ MP.page({ id: 'investments', title: 'Investment growth' }).then(function () {
         ]
       }))));
 
-    box.appendChild(cashVsInvest(r));
-    box.appendChild(riskCard(r));
-    box.appendChild(wrapperCard(r));
-    box.appendChild(tableCard(r));
+    // Simple view keeps the headline, chart and risk; the comparisons, tax notes and table are detail-only.
+    [cashVsInvest(r), riskCard(r), MP.adviceCard('investments'), wrapperCard(r), tableCard(r)].forEach(function (n, i) {
+      if (i === 0 || i >= 3) n.classList.add('detail-only');
+      box.appendChild(n);
+    });
     box.appendChild(howTo(r));
+    if (refs.simpleNote) refs.simpleNote.textContent = 'We assume charges of ' + MP.pct(s.charges / 100, 2) + ' a year' +
+      (s.escalate ? ' and that you raise the monthly amount by ' + MP.pct(s.escalate / 100, 1) + ' each year' : ' and the same amount each month') + '. Switch to Detailed to change these.';
     updateGoal(r);
   }
 
   function narrow() { return window.innerWidth < 560; }
 
-  function stat(label, value, id, hint) {
-    return el('div', { class: 'stat' }, el('span', { class: 'label' }, label), el('span', { class: 'value', id: id }, value), hint ? el('span', { class: 'tiny muted' }, hint) : null);
+  function stat(label, value, id, hint, cls) {
+    return el('div', { class: 'stat' + (cls ? ' ' + cls : '') }, el('span', { class: 'label' }, label), el('span', { class: 'value', id: id }, value), hint ? el('span', { class: 'tiny muted' }, hint) : null);
   }
 
   function cashVsInvest(r) {
@@ -267,6 +290,7 @@ MP.page({ id: 'investments', title: 'Investment growth' }).then(function () {
     return el('section', { class: 'card', 'aria-labelledby': 'h-risk' },
       el('h2', { id: 'h-risk' }, 'Your attitude to risk: ' + k.label),
       el('p', null, k.mix),
+      MP.explain('fund'),
       el('p', { class: 'small' }, k.ride + ' We use the same low, mid and high growth rates for every attitude to keep the comparison simple. In real life, your attitude mostly changes how bumpy the ride is.'),
       el('div', { class: 'callout warning', id: 'bad-year' },
         el('p', null, el('strong', null, 'What a bad year could look like: '), 'a fall of about ' + MP.pct(k.fall, 0) + ' in one year is possible for a ' + k.label.toLowerCase() + ' mix (illustrative).'),
@@ -346,6 +370,7 @@ MP.page({ id: 'investments', title: 'Investment growth' }).then(function () {
   var wasNarrow = narrow();
   window.addEventListener('resize', function () { if (narrow() !== wasNarrow) { wasNarrow = narrow(); update(); } });
   MP.onTheme(function () { update(); });
+  MP.onPrefs(function () { update(); });   // advice wording follows the advice preference
 
   render();
 });
