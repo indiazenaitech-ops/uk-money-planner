@@ -1,0 +1,39 @@
+From: Oakfield Home Cover <renewals@oakfield-cover.example>
+To: Priya Sharma <priya@example.co.uk>
+Subject: =?UTF-8?B?WW91ciBob21lIGluc3VyYW5jZSByZW5ld2FsIOKAkyDCozM4NC4wMCBhIHllYXI=?=
+Date: Mon, 10 Feb 2030 09:15:00 +0000
+Message-ID: <renewal-2219@oakfield-cover.example>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="=_oak_boundary_01"
+
+--=_oak_boundary_01
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+Dear Priya,
+
+Thank you for insuring your home with Oakfield Home Cover. Your buildings a=
+nd contents policy will renew on 15 March 2030.
+
+Your new annual premium: =C2=A3384.00
+Last year=E2=80=99s premium: =C2=A3351.20
+
+Policy number: OHC-2219-4471
+If you pay by Direct Debit, we will take the payment on or around your rene=
+wal date.
+
+If you would like to make changes, please get in touch before your renewal =
+date. This is a fictional test email.
+
+Oakfield Home Cover
+
+--=_oak_boundary_01
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: quoted-printable
+
+<html><head><style>p{color:#333}</style></head><body><p>Dear Priya,</p><p>Y=
+our buildings and contents policy will renew on <b>15 March 2030</b>.</p><p=
+>Your new annual premium: <b>&pound;384.00</b></p><p>Oakfield Home Cover</p=
+></body></html>
+--=_oak_boundary_01--
