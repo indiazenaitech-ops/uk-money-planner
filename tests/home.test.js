@@ -8,7 +8,7 @@ module.exports = async ({ page, expect }) => {
   await page.waitForSelector('#profile-form');
   expect(await page.inputValue('#p-salary') === '42000', 'salary survives reload');
   expect(await page.inputValue('#p-region') === 'scotland', 'region survives reload');
-  expect((await page.locator('#tools .tile').count()) === 8, 'eight tools listed');
+  expect((await page.locator('#tools .tile').count()) === await page.evaluate(() => MP_TOOLS.length), 'every tool listed');
   expect((await page.locator('#key-dates li').count()) >= 2, 'key dates listed');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dates-ics')]);
   expect(/\.ics$/.test(dl.suggestedFilename()), 'calendar file downloads');

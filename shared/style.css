@@ -66,7 +66,7 @@ h1 { font-size: 1.6rem; } h2 { font-size: 1.25rem; } h3 { font-size: 1.05rem; }
 p { margin: 0 0 .75em; }
 img, svg, canvas { max-width: 100%; }
 :focus-visible { outline: 3px solid var(--info); outline-offset: 2px; }
-.visually-hidden { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.visually-hidden { position: absolute !important; top: 0; inset-inline-start: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ---------- shell ---------- */
 .mp-header { background: var(--primary); color: var(--primary-ink); }
