@@ -47,11 +47,22 @@ knowledge base (how the app works, 2026/27 UK figures, glossary) and five client
 
 Screen control is implemented in `MP.controls()` / `MP.act()` (shared/core.js) and reaches the tool panel by
 `postMessage`. Sign out, delete, remove, reset, clear, import/backup, password and file controls are never listed or
-usable, and each control the guide touches flashes so the customer can see it.
+usable, and each control the guide touches flashes so the customer can see it. Every tool call is announced on screen
+("🤖 Your guide: …") and listed under "What your guide has done" in Guide settings for the session.
 
-Agent privacy settings: voice recordings off, transcripts deleted after 30 days, prompt-injection and topic guardrails on.
-Before real customers use it, the institution needs its own data processing agreement with ElevenLabs and a Consumer Duty
-review, and should restrict the agent to its own domain (agent auth allowlist). Remove `agentId` to switch the guide off.
+Agent settings: voice recordings off, transcripts deleted after 30 days, prompt-injection and topic guardrails on, and
+the agent only accepts conversations from `apnipathshala.ai` (auth allowlist, origin header required). Change the
+allowlist to the institution's own domain before go-live. Every conversation is scored against five Consumer Duty
+criteria, and five behaviour tests (CD1–CD5) are attached to the agent. Remove `agentId` to switch the guide off.
+
+### Compliance pack
+
+- [`compliance/consumer-duty-assessment.md`](compliance/consumer-duty-assessment.md): outcomes, vulnerable customers,
+  guidance/advice boundary, a risk register for the guide acting on screen, test evidence, MI and sign-off table.
+- [`compliance/elevenlabs-dpa-checklist.md`](compliance/elevenlabs-dpa-checklist.md): what the institution's DPA with
+  ElevenLabs must cover, data flows, transfers, retention and the current configuration.
+
+Both are drafts for the institution's compliance, legal and DPO teams. They are not sign-off.
 
 ## Structure
 
@@ -67,6 +78,7 @@ shared/tools.js       tool catalogue for the home page
 apps/<id>/            one folder per tool: index.html, app.js, optional style.css / data.js
 tests/check.js        headless checks: node tests/check.js [id|home|all]
 tests/<id>.test.js    interaction test per tool
+compliance/           Consumer Duty assessment and ElevenLabs DPA checklist (drafts)
 ```
 
 ## Building a tool (contract)

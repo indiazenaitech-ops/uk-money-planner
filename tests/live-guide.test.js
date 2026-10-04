@@ -70,6 +70,8 @@ module.exports = async ({ page, expect, url }) => {
 
   // allow plan sharing, then the plan is available
   await page.click('#lg-launcher');
+  const log = await page.innerText('#lg-log');
+  expect(/Pressed "Next"/.test(log) && /Filled/.test(log), 'customer can see what the guide did: ' + log.split('\n').slice(0, 3).join(' / '));
   await page.check('#lg-share-set');
   await page.waitForTimeout(400);
   const plan = await page.evaluate(() => window.__lgTools.get_my_plan());

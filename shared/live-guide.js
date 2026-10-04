@@ -2,7 +2,8 @@
    - Off until the customer agrees. What they say is sent to ElevenLabs; their saved plan is shared only
      if they tick "Let the guide see my plan".
    - Tools the guide opens load in a panel (iframe) over the current page, so the conversation keeps going.
-   - Client tools: open_tool, set_view, show_term, get_my_plan, read_screen (configured on the agent). */
+   - Client tools: open_tool, set_view, show_term, get_my_plan, read_screen, get_screen_controls, click_control, fill_field.
+   - Every tool call is announced on screen and kept in "What your guide has done" for this session. */
 (function () {
   'use strict';
   if (!window.MP || window.top !== window) return;
@@ -51,12 +52,36 @@
     var close = MP.modal(body, { title: 'Talk to your guide' });
   }
 
+  /* ---------- what the guide has done (shown to the customer; kept for this tab only) ---------- */
+  var actions = [];
+  function record(tool, args, result) {
+    var text = String(result || '');
+    var acted = /^(Selected|Ticked|Unticked|Pressed|Filled|Opened|Switched)/.test(text);
+    var entry = { at: new Date(), tool: tool, text: acted ? text : tool.replace(/_/g, ' ') + (args && (args.tool_id || args.control || args.term || args.mode) ? ': ' + (args.tool_id || args.control || args.term || args.mode) : '') };
+    actions.unshift(entry); actions = actions.slice(0, 50);
+    try { sessionStorage.setItem('mp.guide.actions', JSON.stringify(actions.slice(0, 50))); } catch (e) { }
+    if (acted) announce(text);
+  }
+  var live = null;
+  function announce(text) {
+    if (!live) { live = el('div', { class: 'lg-did', role: 'status', 'aria-live': 'polite', id: 'lg-did' }); document.body.appendChild(live); }
+    live.textContent = '🤖 Your guide: ' + text;
+    live.hidden = false;
+    clearTimeout(announce.t); announce.t = setTimeout(function () { live.hidden = true; }, 4000);
+  }
+  try { actions = (JSON.parse(sessionStorage.getItem('mp.guide.actions') || '[]') || []).map(function (a) { a.at = new Date(a.at); return a; }); } catch (e) { actions = []; }
+
   function settings() {
     var share = el('input', { type: 'checkbox', id: 'lg-share-set', checked: !!gp().sharePlan });
     share.onchange = function () { setGp({ sharePlan: share.checked }).then(function () { updateVars(); MP.toast(share.checked ? 'The guide can now see your plan.' : 'The guide can no longer see your plan.'); }); };
     var close = MP.modal(el('div', null,
       el('label', { class: 'check' }, share, 'Let the guide see my plan'),
       el('p', { class: 'small muted' }, 'This only affects new questions you ask. Your plan itself always stays encrypted on this device.'),
+      el('h3', { style: { marginTop: '14px' } }, 'What your guide has done'),
+      actions.length ? el('ol', { class: 'small lg-log', id: 'lg-log' }, actions.slice(0, 20).map(function (a) {
+        return el('li', null, el('span', { class: 'muted' }, a.at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' '), a.text);
+      })) : el('p', { class: 'small muted', id: 'lg-log' }, 'Nothing yet.'),
+      el('p', { class: 'small muted' }, 'You can change anything the guide entered. This list is kept on this device until you close the tab.'),
       el('div', { class: 'row' },
         el('button', { class: 'btn btn-danger btn-sm', type: 'button', id: 'lg-stop', onclick: function () {
           setGp({ consent: false }).then(function () { if (widget) { widget.remove(); widget = null; } updateLauncher(); close(); MP.toast('The guide is switched off.'); });
@@ -228,8 +253,17 @@
   ].join('\n');
   document.head.appendChild(css);
 
+  Object.keys(TOOLS).forEach(function (name) {
+    var fn = TOOLS[name];
+    TOOLS[name] = function (args) {
+      var out = fn(args);
+      Promise.resolve(out).then(function (r) { record(name, args, r); }, function () { });
+      return out;
+    };
+  });
+  css.textContent += '\n.lg-did{position:fixed;top:76px;inset-inline-end:16px;z-index:46;background:var(--text);color:var(--bg);padding:10px 14px;border-radius:10px;box-shadow:var(--shadow);max-width:360px;font-weight:600}\n.lg-log{max-height:220px;overflow:auto;padding-inline-start:20px}';
   drawLauncher();
   if (gp().consent) mount();
   MP.onPrefs(updateVars);
-  MP.LiveGuide = { tools: TOOLS, openPanel: openPanel, closePanel: closePanel };
+  MP.LiveGuide = { tools: TOOLS, openPanel: openPanel, closePanel: closePanel, actions: function () { return actions.slice(); } };
 })();
