@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money words · Money Planner</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="shared/style.css">
+<style>
+  .words { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); margin-top: 16px; }
+  .word h2 { font-size: 1.05rem; margin: 0 0 4px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .word p { margin: 0; color: var(--muted); }
+  .word .listen { margin-inline-start: 0; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .filters input[type=search] { max-width: 360px; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="shared/uk.js"></script>
+<script src="shared/glossary.js"></script>
+<script src="shared/core.js"></script>
+<script src="shared/tools.js"></script>
+<script>
+/* Money words: every glossary term in plain English, with narrated audio (Eleven v4) where recorded. */
+MP.page({ id: 'words', title: 'Money words', noToggle: true }).then(function () {
+  var el = MP.el, main = MP.$('#app');
+  var keys = Object.keys(MP_GLOSSARY).sort(function (a, b) { return MP_GLOSSARY[a].term.localeCompare(MP_GLOSSARY[b].term); });
+  var q = el('input', { type: 'search', id: 'words-search', placeholder: 'Search, e.g. ISA or pension', 'aria-label': 'Search money words' });
+  var audioOnly = el('input', { type: 'checkbox', id: 'words-audio' });
+  var list = el('div', { class: 'words', id: 'words-list', 'aria-live': 'polite' });
+  main.appendChild(el('h1', null, 'Money words'));
+  main.appendChild(el('p', { class: 'muted' }, 'Plain-English meanings of the words you\'ll see in the planner. Press 🔊 to hear an explanation read aloud.'));
+  main.appendChild(el('div', { class: 'filters' }, q, el('label', { class: 'check' }, audioOnly, 'Only words with audio')));
+  main.appendChild(list);
+  function render() {
+    var s = q.value.trim().toLowerCase();
+    list.innerHTML = '';
+    keys.filter(function (k) {
+      var d = MP_GLOSSARY[k];
+      return (!audioOnly.checked || MP.hasAudio(k)) && (!s || d.term.toLowerCase().indexOf(s) >= 0 || d.text.toLowerCase().indexOf(s) >= 0);
+    }).forEach(function (k) {
+      var d = MP_GLOSSARY[k];
+      list.appendChild(el('article', { class: 'card word', dataset: { key: k } }, el('h2', null, d.term, MP.listen(k)), el('p', null, d.text)));
+    });
+    if (!list.children.length) list.appendChild(el('p', { class: 'muted' }, 'No words match. Try another search.'));
+  }
+  q.addEventListener('input', render);
+  audioOnly.addEventListener('change', render);
+  main.appendChild(el('p', { class: 'small muted', style: { marginTop: '20px' } }, 'Recordings are made with an AI voice. Figures are for the ' + UK.R.taxYear + ' tax year.'));
+  render();
+});
+</script>
+</body>
+</html>

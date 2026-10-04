@@ -30,7 +30,7 @@ async function signUp(page) {
 }
 
 async function checkPage(browser, id) {
-  const rel = id === 'home' || id === 'live-guide' ? 'home.html' : id === 'guide' ? 'guide.html' : `apps/${id}/index.html`;
+  const rel = id === 'home' || id === 'live-guide' || id === 'words' ? 'home.html' : id === 'guide' ? 'guide.html' : `apps/${id}/index.html`;
   const shots = path.join(__dirname, 'shots', id);
   fs.mkdirSync(shots, { recursive: true });
   const errors = [];
@@ -56,7 +56,7 @@ async function checkPage(browser, id) {
     await page.screenshot({ path: path.join(shots, 'after-test.png'), fullPage: true });
     // saved state survives a reload
     await page.reload(); await page.waitForSelector('.mp-header');
-  } else if (!['home', 'guide', 'live-guide'].includes(id)) {
+  } else if (!['home', 'guide', 'live-guide', 'words'].includes(id)) {
     errors.push(`no test file tests/${id}.test.js`);
   }
 
@@ -76,8 +76,8 @@ async function checkPage(browser, id) {
 
 (async () => {
   const which = process.argv[2] || 'all';
-  const ids = which === 'all' ? ['home', 'guide', 'live-guide'].concat(TOOLS) : [which];
-  const browser = await playwright.chromium.launch({ headless: true });
+  const ids = which === 'all' ? ['home', 'guide', 'live-guide', 'words'].concat(TOOLS) : [which];
+  const browser = await playwright.chromium.launch({ headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
   let failed = 0;
   for (const id of ids) {
     let r;

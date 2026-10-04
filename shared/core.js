@@ -358,11 +358,36 @@
   /* ---------- plain-English explanations ----------
      MP.term('isa') → a clickable term that shows its meaning. MP.explain('isa') → an inline explanation
      that only beginners see (hidden by CSS for other knowledge levels). Definitions live in shared/glossary.js. */
+  /* ---------- narrated audio (pre-recorded with ElevenLabs Eleven v4; files in /audio, work offline) ---------- */
+  MP.AUDIO = ['welcome', 'guide-knowledge', 'guide-detail', 'guide-advice', 'guide-priorities', 'guide-plan',
+    'isa', 'lisa', 'emergency-fund', 'inflation', 'compound-interest', 'pension', 'auto-enrolment', 'tax-relief',
+    'salary-sacrifice', 'state-pension', 'annuity', 'drawdown', 'apr', 'aer', 'iht', 'adviser'];
+  var player = null, playingBtn = null;
+  function stopAudio() { if (player) { player.pause(); player.currentTime = 0; } if (playingBtn) { playingBtn.setAttribute('aria-pressed', 'false'); playingBtn.firstChild.textContent = '🔊 '; } playingBtn = null; }
+  MP.hasAudio = function (key) { return MP.AUDIO.indexOf(key) >= 0; };
+  /* A small Listen button for a clip; returns null when there is no recording for the key. */
+  MP.listen = function (key, label) {
+    if (!MP.hasAudio(key)) return null;
+    var btn = el('button', { type: 'button', class: 'btn btn-ghost btn-sm listen', 'aria-pressed': 'false', dataset: { audio: key } }, el('span', { 'aria-hidden': 'true' }, '🔊 '), label || 'Listen');
+    btn.onclick = function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (playingBtn === btn) { stopAudio(); return; }
+      stopAudio();
+      player = player || new Audio();
+      player.src = MP.root() + 'audio/' + key + '.mp3';
+      player.onended = stopAudio;
+      player.play().then(function () { playingBtn = btn; btn.setAttribute('aria-pressed', 'true'); btn.firstChild.textContent = '⏹ '; })
+        .catch(function () { MP.toast('Sorry, this recording could not be played here.'); });
+    };
+    return btn;
+  };
+  MP.stopAudio = stopAudio;
+
   MP.define = function (key) { var g = window.MP_GLOSSARY || {}; return g[String(key).toLowerCase()] || null; };
   MP.term = function (key, label) {
     var d = MP.define(key);
     if (!d) return document.createTextNode(label || key);
-    var tip = el('span', { class: 'term-tip', role: 'note', hidden: true }, el('strong', null, d.term + ': '), d.text);
+    var tip = el('span', { class: 'term-tip', role: 'note', hidden: true }, el('strong', null, d.term + ': '), d.text, MP.listen(String(key).toLowerCase()));
     var btn = el('button', { type: 'button', class: 'term', 'aria-expanded': 'false', onclick: function (e) {
       e.preventDefault(); var open = tip.hidden; tip.hidden = !open; btn.setAttribute('aria-expanded', String(open));
     } }, label || d.term);
@@ -371,7 +396,7 @@
   MP.explain = function (key, text) {
     var d = text ? { text: text } : MP.define(key);
     if (!d) return null;
-    return el('p', { class: 'explain' }, el('span', { 'aria-hidden': 'true' }, '💡 '), d.text);
+    return el('p', { class: 'explain' }, el('span', { 'aria-hidden': 'true' }, '💡 '), d.text, key ? MP.listen(String(key).toLowerCase()) : null);
   };
 
   function scheduleSave() { clearTimeout(state.saveTimer); state.saveTimer = setTimeout(flush, 250); }

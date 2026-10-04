@@ -135,6 +135,7 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
   function saveDraft() { MP.set('tools.guide', { answers: A, step: stepIndex }); }
 
   function render() {
+    MP.stopAudio();
     var steps = activeSteps();
     stepIndex = MP.clamp(stepIndex, 0, steps.length - 1);
     var s = steps[stepIndex];
@@ -149,6 +150,8 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
     }
     var card = el('section', { class: 'card guide-card', 'aria-live': 'polite', dataset: { step: s.id } });
     card.appendChild(el('h1', { id: 'guide-q', tabindex: '-1' }, w(s.title)));
+    var clip = MP.listen('guide-' + s.id, A.knowledge === 'new' || !A.knowledge ? 'Listen to this question' : 'Listen');
+    if (clip) card.appendChild(el('p', { class: 'guide-listen' }, clip));
     var help = typeof s.help === 'function' ? s.help() : s.help;
     if (help) {
       var h = typeof help === 'string' ? help : help[A.knowledge || 'new'];
