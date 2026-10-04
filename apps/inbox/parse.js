@@ -35,7 +35,7 @@
   function decodeGuess(bin) {
     if (!/[\x80-\xff]/.test(bin)) return bin;
     var u = decodeBytes(bin, 'utf-8');
-    return u.indexOf('�') >= 0 ? decodeBytes(bin, 'windows-1252') : u;
+    return u.indexOf('\uFFFD') >= 0 ? decodeBytes(bin, 'windows-1252') : u;
   }
 
   /* ---------- transfer encodings ---------- */

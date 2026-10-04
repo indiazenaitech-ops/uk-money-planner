@@ -24,7 +24,7 @@ window.BudgetParsers = (function () {
     if (/^\(.*\)$/.test(s)) { neg = true; s = s.slice(1, -1).trim(); }
     if (/\s*DR\.?$/i.test(s)) { neg = !neg; s = s.replace(/\s*DR\.?$/i, ''); }
     else if (/\s*CR\.?$/i.test(s)) s = s.replace(/\s*CR\.?$/i, '');
-    s = s.replace(/GBP/ig, '').replace(/[£$€Â�\s,]/g, '').replace(/[−–—]/g, '-');
+    s = s.replace(/GBP/ig, '').replace(/[£$€Â\uFFFD\s,]/g, '').replace(/[−–—]/g, '-');
     if (/^\+/.test(s)) s = s.slice(1);
     if (/^-/.test(s)) { neg = !neg; s = s.slice(1); }
     if (/-$/.test(s)) { neg = !neg; s = s.slice(0, -1); }
