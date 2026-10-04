@@ -494,10 +494,14 @@
   function niceMax(v) { if (v <= 0) return 1; var p = Math.pow(10, Math.floor(Math.log10(v))), n = v / p; return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * p; }
   function shortMoney(v) { var a = Math.abs(v); return (v < 0 ? '−' : '') + '£' + (a >= 1e6 ? (a / 1e6).toFixed(a >= 1e7 ? 0 : 1) + 'm' : a >= 1e3 ? (a / 1e3).toFixed(a >= 1e4 ? 0 : 1) + 'k' : Math.round(a)); }
   MP.shortMoney = shortMoney;
+  /* Colours may be CSS variable names ('--c1') or literal colours ('#123456'). */
+  function color(c, fallback) { if (!c) return MP.css(fallback || '--c1'); return c.slice(0, 2) === '--' ? MP.css(c) : c; }
+  /* Charts draw in a viewBox; on narrow screens use a smaller one so text stays readable. */
+  function narrow() { return (window.innerWidth || 1024) < 560; }
 
   /* Line/area chart. series: [{name, color:'--c1', values:[...], area:true, dash:true}], labels: x labels */
   MP.lineChart = function (opts) {
-    var W = opts.width || 640, H = opts.height || 280, P = { l: 56, r: 14, t: 14, b: 30 };
+    var W = opts.width || (narrow() ? 380 : 640), H = opts.height || (narrow() ? 250 : 280), P = { l: 50, r: 16, t: 14, b: 30 };
     var series = opts.series || [], labels = opts.labels || [];
     var n = Math.max(1, labels.length - 1);
     var max = niceMax(Math.max.apply(null, [0].concat(series.map(function (s) { return Math.max.apply(null, s.values.concat([0])); }))));
@@ -511,9 +515,14 @@
       s.appendChild(svg('text', { x: P.l - 6, y: y(gv) + 4, 'text-anchor': 'end', 'font-size': 11, fill: text }, shortMoney(gv)));
     }
     var step = Math.max(1, Math.ceil(labels.length / 8));
-    labels.forEach(function (l, i) { if (i % step === 0 || i === labels.length - 1) s.appendChild(svg('text', { x: x(i), y: H - 10, 'text-anchor': 'middle', 'font-size': 11, fill: text }, l)); });
+    var last = labels.length - 1;
+    labels.forEach(function (l, i) {
+      // always show the last label, dropping the one before it if they would overlap
+      var show = i === last || (i % step === 0 && (last - i) >= step * 0.6);
+      if (show) s.appendChild(svg('text', { x: x(i), y: H - 10, 'text-anchor': i === last ? 'end' : i === 0 ? 'start' : 'middle', 'font-size': 11, fill: text }, l));
+    });
     series.forEach(function (se) {
-      var col = MP.css(se.color || '--c1') || se.color;
+      var col = color(se.color);
       var pts = se.values.map(function (v, i) { return x(i) + ',' + y(Math.max(0, v)); });
       if (se.area) s.appendChild(svg('path', { d: 'M' + x(0) + ',' + y(0) + ' L' + pts.join(' L') + ' L' + x(se.values.length - 1) + ',' + y(0) + ' Z', fill: col, opacity: 0.16 }));
       s.appendChild(svg('polyline', { points: pts.join(' '), fill: 'none', stroke: col, 'stroke-width': 2.5, 'stroke-dasharray': se.dash ? '6 5' : 'none', 'stroke-linejoin': 'round' }));
@@ -527,7 +536,7 @@
   };
   /* Horizontal bar chart: items [{label, value, color}] */
   MP.barChart = function (opts) {
-    var items = opts.items || [], W = opts.width || 640, rowH = 30, P = { l: Math.min(200, opts.labelWidth || 150), r: 70 };
+    var items = opts.items || [], W = opts.width || (narrow() ? 380 : 640), rowH = 30, P = { l: Math.min(200, opts.labelWidth || (narrow() ? 120 : 150)), r: 70 };
     var H = Math.max(40, items.length * rowH + 10), max = Math.max.apply(null, items.map(function (i) { return Math.abs(i.value); }).concat([1]));
     var s = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img', 'aria-label': opts.label || 'Bar chart' });
     var text = MP.css('--text'), muted = MP.css('--muted');
@@ -535,7 +544,7 @@
       var y0 = 5 + i * rowH, w = (W - P.l - P.r) * Math.abs(it.value) / max;
       var lab = String(it.label); if (lab.length > 22) lab = lab.slice(0, 21) + '…';
       s.appendChild(svg('text', { x: P.l - 8, y: y0 + 18, 'text-anchor': 'end', 'font-size': 12, fill: text }, lab));
-      s.appendChild(svg('rect', { x: P.l, y: y0 + 4, width: Math.max(2, w), height: rowH - 10, rx: 4, fill: MP.css(it.color || '--c' + (i % 8 + 1)) }));
+      s.appendChild(svg('rect', { x: P.l, y: y0 + 4, width: Math.max(2, w), height: rowH - 10, rx: 4, fill: color(it.color, '--c' + (i % 8 + 1)) }));
       s.appendChild(svg('text', { x: P.l + w + 6, y: y0 + 18, 'font-size': 12, fill: muted }, opts.format ? opts.format(it.value) : shortMoney(it.value)));
     });
     return s;
@@ -550,7 +559,7 @@
       if (items.length === 1) a1 = a0 + 2 * Math.PI - 0.0001;
       var d = ['M', cx + R * Math.cos(a0), cy + R * Math.sin(a0), 'A', R, R, 0, large, 1, cx + R * Math.cos(a1), cy + R * Math.sin(a1),
         'L', cx + r * Math.cos(a1), cy + r * Math.sin(a1), 'A', r, r, 0, large, 0, cx + r * Math.cos(a0), cy + r * Math.sin(a0), 'Z'].join(' ');
-      s.appendChild(svg('path', { d: d, fill: MP.css(it.color || '--c' + (i % 8 + 1)) }));
+      s.appendChild(svg('path', { d: d, fill: color(it.color, '--c' + (i % 8 + 1)) }));
       a0 = a1;
     });
     if (opts.center) s.appendChild(svg('text', { x: cx, y: cy + 6, 'text-anchor': 'middle', 'font-size': 18, 'font-weight': 700, fill: MP.css('--text') }, opts.center));
@@ -558,7 +567,7 @@
   };
   function wrapChart(s, series) {
     var legend = el('div', { class: 'legend' });
-    (series || []).forEach(function (se) { if (se.name) legend.appendChild(el('span', null, el('i', { style: { background: MP.css(se.color || '--c1') } }), se.name)); });
+    (series || []).forEach(function (se) { if (se.name) legend.appendChild(el('span', null, el('i', { style: { background: color(se.color) } }), se.name)); });
     return el('div', { class: 'chart-wrap' }, s, legend);
   }
 })();

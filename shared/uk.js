@@ -57,6 +57,33 @@ window.UK = (function () {
     savings: { psaBasic: 1000, psaHigher: 500, psaAdditional: 0, startingRateBand: 5000 },
     dividends: { allowance: 500, basic: 0.1075, higher: 0.3575, additional: 0.3935 },
     cgt: { annualExempt: 3000, basic: 0.18, higher: 0.24 },
+    // Savings income tax rates rise by 2 points from 6 April 2027 (Budget 2025)
+    savingsRatesFrom2027: { basic: 0.22, higher: 0.42, additional: 0.47 },
+    nationalLivingWage: 12.71,        // per hour, age 21+, from April 2026
+    // Self-employed (Class 2 is voluntary below the small profits threshold). [verify] = check gov.uk
+    selfEmployed: {
+      class4Lower: 12570, class4Upper: 50270, class4Main: 0.06, class4UpperRate: 0.02,
+      class2Weekly: 3.65, smallProfitsThreshold: 7105,   // [verify]
+      tradingAllowance: 1000, paymentsOnAccountThreshold: 1000,
+      mtdThresholdApr2026: 50000, mtdThresholdApr2027: 30000
+    },
+    class3Weekly: 18.40,              // voluntary NI to fill State Pension gaps [verify]
+    // Family
+    childBenefit: { eldest: 27.05, other: 17.90, hicbcStart: 60000, hicbcEnd: 80000 },
+    taxFreeChildcare: { topUp: 0.20, maxPerChild: 2000, maxDisabled: 4000, incomeLimit: 100000, minHoursPerWeek: 16 },
+    statutoryMaternity: { first6WeeksRate: 0.9, weeklyFlat: 194.32, flatWeeks: 33 },  // [verify flat rate]
+    // Inheritance tax
+    iht: {
+      nilRateBand: 325000, residenceNilRateBand: 175000, rnrbTaperStart: 2000000,
+      rate: 0.40, charityRate: 0.36, charityShare: 0.10,
+      annualExemption: 3000, smallGift: 250,
+      pensionsInEstateFrom: '2027-04-06',
+      // tax on gifts made 3 to 7 years before death is reduced
+      giftTaper: [{ years: 3, rate: 0.40 }, { years: 4, rate: 0.32 }, { years: 5, rate: 0.24 }, { years: 6, rate: 0.16 }, { years: 7, rate: 0.08 }],
+      businessReliefFullCap: 2500000    // 100% business/agricultural relief cap from April 2026 [verify]
+    },
+    // Redundancy
+    redundancy: { weeklyPayCap: 751, maxYears: 20, taxFreeTermination: 30000 },   // [verify cap]
     // Growth assumptions for projections (nominal, before charges): low / mid / high
     growth: { low: 0.02, mid: 0.05, high: 0.08 },
     inflation: 0.025

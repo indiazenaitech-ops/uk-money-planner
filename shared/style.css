@@ -94,6 +94,8 @@ main#app { max-width: var(--maxw); width: 100%; margin: 0 auto; padding: 12px 16
 .grid-2 { display: grid; gap: 16px; grid-template-columns: 1fr; }
 .grid-3 { display: grid; gap: 16px; grid-template-columns: 1fr; }
 .split { display: grid; gap: 16px; grid-template-columns: 1fr; align-items: start; }
+.split > *, .grid-2 > *, .grid-3 > * { min-width: 0; }
+[hidden] { display: none !important; }
 @media (min-width: 760px) {
   .grid-2 { grid-template-columns: 1fr 1fr; }
   .grid-3 { grid-template-columns: repeat(3, 1fr); }
@@ -126,6 +128,7 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .btn-primary { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); }
 .btn-primary:hover { background: var(--primary-hover); }
 .btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-accent:hover { background: color-mix(in srgb, var(--accent) 85%, #000); border-color: color-mix(in srgb, var(--accent) 85%, #000); }
 :root[data-theme="dark"] .btn-accent { color: #06221c; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn-accent { color: #06221c; } }
 .btn-danger { background: var(--danger-soft); border-color: var(--danger); color: var(--danger); }
