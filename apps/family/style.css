@@ -1,0 +1,43 @@
+.cost-grid { display: grid; gap: 0 14px; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+#cb-children, #tfc-children, #tfc-disabled, #mat-full, #mat-half, #mat-leave, #baby-childcare-months { max-width: 160px; }
+.stats .value { font-size: 1.2rem; }
+.stats .label { font-size: .84rem; }
+.grid-3.stats { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+.tight { margin: 0; padding-inline-start: 18px; }
+.tight li + li { margin-top: 6px; }
+.nowrap { white-space: nowrap; }
+.seg { align-self: flex-start; }
+/* shared .btn:hover outranks .btn-accent: keep the accent colour */
+.btn-accent:hover { background: var(--accent); filter: brightness(.94); }
+.linkish { color: var(--info); text-decoration: underline; padding-inline: 4px; min-height: 40px; }
+
+/* eligibility checklist */
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.checks li { display: flex; gap: 10px; align-items: flex-start; font-size: .95rem; }
+.checks .mark { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: .85rem; }
+.checks li.ok .mark { background: var(--success-soft); color: var(--success); }
+.checks li.no .mark { background: var(--danger-soft); color: var(--danger); }
+
+/* baby items */
+.items { display: grid; gap: 12px; }
+.item-row { display: grid; grid-template-columns: 1fr 120px auto; gap: 6px 10px; align-items: center; }
+.item-row .item-name { font-weight: 600; font-size: .93rem; }
+.item-row .seg { flex-wrap: nowrap; }
+.item-row .seg-sm button { padding: 4px 10px; }
+#mat-weeks tr.muted td { color: var(--muted); }
+#fm-panel:focus-visible { outline-offset: 4px; }
+
+@media (max-width: 600px) {
+  .tabs { flex-wrap: wrap; overflow-x: visible; }
+  .tabs button { flex: 1 1 45%; padding: 8px 6px; }
+  .stats .value { font-size: 1.02rem; }
+  .stats .label { font-size: .78rem; }
+  .item-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .item-row .item-name { grid-column: 1 / -1; }
+  .item-row .seg-sm button { padding: 4px 9px; }
+}
+#mat-weeks td, #mat-weeks th { white-space: nowrap; }
+@media (max-width: 600px) {
+  #mat-weeks, #mat-phases { font-size: .86rem; }
+  #mat-weeks td, #mat-weeks th { padding: 6px 6px; }
+}
