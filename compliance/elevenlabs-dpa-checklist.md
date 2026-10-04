@@ -77,7 +77,7 @@ Prepared 4 October 2026 for the "Money Planner Guide" agent (`agent_9201m445gfbx
 
 | Control | Status |
 |---|---|
-| Domain allowlist | ✅ `apnipathshala.ai`, `www.apnipathshala.ai`, origin header required. **Change to the institution's own domain before go-live** |
+| Domain allowlist | ✅ `indiazenaitech-ops.github.io` only (the GitHub Pages demo site), origin header required. **Change to the institution's own domain before go-live** |
 | Signed-token auth (`enable_auth`) | ❌ Off. Consider turning it on so only signed-in customers can start a conversation (needs a small backend to sign tokens) |
 | Voice recording | ✅ Off |
 | Transcript retention | ✅ 30 days |

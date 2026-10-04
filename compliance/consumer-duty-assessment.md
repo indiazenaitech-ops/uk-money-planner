@@ -121,7 +121,7 @@ LLM behaviour is probabilistic, so these tests are evidence, not proof. That is 
 
 1. **DPA with ElevenLabs** signed by the institution (see `elevenlabs-dpa-checklist.md`)
 2. **DPIA** completed, covering voice, AI and on-screen actions
-3. **Move the domain allowlist** from `apnipathshala.ai` to the institution's production domain; consider signed-token auth
+3. **Move the domain allowlist** from the demo site `indiazenaitech-ops.github.io` to the institution's production domain; consider signed-token auth
 4. Decide on **PII redaction / zero retention** (needs Enterprise) and on the widget **file upload** (currently enabled)
 5. Legal review of the guidance/advice boundary (section 2), including the "personal plan" wording
 6. Prompt tweaks from testing: precise account location; suggest changing a password the customer revealed

@@ -4,7 +4,7 @@ A white-label library of personal finance planning tools for customers of a UK f
 retirement, savings and ISAs, investments, budgeting from bank statements, a "money inbox" for bills in
 emails, take-home pay, mortgages and debt, and a **Dreams & goals** planner that ties everything together.
 
-It is static HTML/CSS/JS. Open `index.html` from disk or host the folder anywhere (GitHub Pages, S3, the
+It is static HTML/CSS/JS. Demo: https://indiazenaitech-ops.github.io/uk-money-planner/ (GitHub Pages). Open `index.html` from disk or host the folder anywhere (GitHub Pages, S3, the
 bank's CDN). There is no backend.
 
 ## Privacy and security model
@@ -51,7 +51,7 @@ usable, and each control the guide touches flashes so the customer can see it. E
 ("🤖 Your guide: …") and listed under "What your guide has done" in Guide settings for the session.
 
 Agent settings: voice recordings off, transcripts deleted after 30 days, prompt-injection and topic guardrails on, and
-the agent only accepts conversations from `apnipathshala.ai` (auth allowlist, origin header required). Change the
+the agent only accepts conversations from `indiazenaitech-ops.github.io` (auth allowlist, origin header required). Change the
 allowlist to the institution's own domain before go-live. Every conversation is scored against five Consumer Duty
 criteria, and five behaviour tests (CD1–CD5) are attached to the agent. Remove `agentId` to switch the guide off.
 
