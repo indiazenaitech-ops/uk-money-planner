@@ -375,7 +375,7 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
       el('li', null, A.advice === 'yes' ? 'Where a decision is big, we\'ll show how to find a regulated adviser.' : A.advice === 'maybe' ? 'We\'ll mention advice for the big decisions only.' : 'We\'ll point you to free, impartial guidance.')));
     body.appendChild(el('h2', null, A.advice === 'yes' ? 'Finding an adviser' : 'Help if you want it'));
     body.appendChild(MP.adviceCard('general'));
-    if (A.advice === 'yes') body.appendChild(el('p', { class: 'small muted' }, 'Tip: before your meeting, download a backup or print the plans you have made here, so the adviser can see your figures.'));
+    if (A.advice === 'yes') body.appendChild(el('p', { class: 'small muted' }, 'Tip: before your meeting, print ', el('a', { href: 'report.html' }, 'your money plan'), ' so the adviser can see your figures.'));
     body.appendChild(el('div', { class: 'row', style: { marginTop: '16px' } },
       el('a', { class: 'btn btn-primary', href: 'home.html', id: 'guide-done' }, 'Go to my dashboard'),
       plan[0] ? el('a', { class: 'btn btn-accent', href: 'apps/' + plan[0].tool + '/index.html', id: 'guide-first' }, 'Start step 1 →') : null,

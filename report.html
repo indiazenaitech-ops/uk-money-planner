@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My money plan · Money Planner</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="shared/style.css">
+<style>
+  .report { max-width: 860px; margin: 0 auto; }
+  .report h1 { margin-bottom: 4px; }
+  .report section { margin-top: 18px; }
+  .kv { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px 18px; }
+  .kv div { display: flex; flex-direction: column; }
+  .kv span:first-child { color: var(--muted); font-size: .85rem; }
+  .kv span:last-child { font-weight: 600; }
+  .questions li { margin-bottom: 6px; }
+  @media print {
+    .report section { break-inside: avoid; }
+    a[href^="http"]::after { content: " (" attr(href) ")"; font-size: .8em; color: #555; }
+  }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="config.js"></script>
+<script src="shared/uk.js"></script>
+<script src="shared/glossary.js"></script>
+<script src="shared/core.js"></script>
+<script src="shared/tools.js"></script>
+<script>
+/* A printable summary of everything the customer has planned, for their own records or an adviser meeting. */
+MP.page({ id: 'report', title: 'My money plan', noToggle: true }).then(function () {
+  var el = MP.el, main = MP.$('#app');
+  var p = MP.profile(), pr = MP.prefs(), goals = MP.goals(), sums = MP.get('summaries', {});
+  var TOOL = {}; MP_TOOLS.forEach(function (t) { TOOL[t.id] = t; });
+  var REG = { england: 'England', wales: 'Wales', scotland: 'Scotland', ni: 'Northern Ireland' };
+  var RISK = { cautious: 'Cautious', balanced: 'Balanced', adventurous: 'Adventurous' };
+  var PRI = { bills: 'Bills and spending', debt: 'Paying off debts', safety: 'Safety net', home: 'Buying a home', save: 'Saving for something', invest: 'Investing', retire: 'Retirement', protect: 'Protecting family', family: 'Children', legacy: 'Inheritance', selfemp: 'Self-employed tax', job: 'Job security' };
+  function kv(k, v) { return v == null || v === '' ? null : el('div', null, el('span', null, k), el('span', null, v)); }
+
+  var r = el('div', { class: 'report' });
+  r.appendChild(el('div', { class: 'row no-print', style: { justifyContent: 'flex-end' } },
+    el('button', { class: 'btn btn-primary', type: 'button', id: 'print', onclick: function () { window.print(); } }, '🖨️ Print or save as PDF')));
+  r.appendChild(el('h1', null, 'My money plan'));
+  r.appendChild(el('p', { class: 'muted' }, (p.name || '') + ' · prepared ' + MP.fmtDate(new Date()) + ' with ' + (MP.config.product || 'Money Planner') + '. Figures are estimates for the ' + UK.R.taxYear + ' tax year.'));
+
+  r.appendChild(el('section', { class: 'card' }, el('h2', null, 'About me'), el('div', { class: 'kv' },
+    kv('Age', p.dob ? String(UK.age(p.dob)) : ''), kv('Lives in', REG[p.region]), kv('Yearly income before tax', p.salary ? MP.money(p.salary) : ''),
+    kv('Partner\'s income', p.partnerSalary ? MP.money(p.partnerSalary) : ''), kv('Attitude to investment risk', RISK[p.riskAttitude]),
+    kv('Would like to retire at', p.retireAge ? String(p.retireAge) : ''), kv('State Pension age', p.dob ? String(Math.floor(UK.statePensionAge(p.dob))) : ''))));
+
+  if ((pr.priorities || []).length) r.appendChild(el('section', { class: 'card' }, el('h2', null, 'What matters to me'),
+    el('p', null, pr.priorities.map(function (x) { return PRI[x] || x; }).join(' · '))));
+
+  var plan = (pr.plan || []).filter(function (x) { return TOOL[x.tool]; });
+  if (plan.length) r.appendChild(el('section', { class: 'card' }, el('h2', null, 'My plan'),
+    el('ol', null, plan.map(function (x) { return el('li', null, el('strong', null, TOOL[x.tool].title + ': '), sums[x.tool] ? sums[x.tool].text : x.why); }))));
+
+  r.appendChild(el('section', { class: 'card' }, el('h2', null, 'My dreams and goals'),
+    goals.length ? el('div', { class: 'scroll-x' }, el('table', { class: 'table', id: 'report-goals' },
+      el('thead', null, el('tr', null, el('th', null, 'Goal'), el('th', null, 'By'), el('th', { class: 'num' }, 'Target'), el('th', { class: 'num' }, 'Saved'), el('th', { class: 'num' }, 'Monthly'))),
+      el('tbody', null, goals.map(function (g) {
+        return el('tr', null, el('td', null, (g.icon || '') + ' ' + g.name), el('td', null, MP.fmtDate(g.date)), el('td', { class: 'num' }, MP.money(g.target)),
+          el('td', { class: 'num' }, MP.money(g.saved || 0)), el('td', { class: 'num' }, MP.money(g.monthly || g.monthlyNeeded || 0)));
+      })))) : el('p', { class: 'muted' }, 'No goals saved yet.')));
+
+  var saved = MP_TOOLS.filter(function (t) { return sums[t.id]; });
+  r.appendChild(el('section', { class: 'card' }, el('h2', null, 'My saved plans'),
+    saved.length ? el('ul', { id: 'report-tools' }, saved.map(function (t) { return el('li', null, el('strong', null, t.title + ': '), sums[t.id].text, el('span', { class: 'muted tiny' }, ' (' + MP.fmtDate(sums[t.id].at) + ')')); }))
+      : el('p', { class: 'muted' }, 'Use the tools and your results will appear here.')));
+
+  r.appendChild(el('section', { class: 'card' }, el('h2', null, pr.advice === 'yes' ? 'Questions to ask an adviser' : 'Questions worth thinking about'),
+    el('ul', { class: 'questions' },
+      el('li', null, 'Are you independent or restricted, and how do you charge (fixed fee, hourly or a percentage)?'),
+      el('li', null, 'Am I on track for the retirement income I want, and what would change that?'),
+      el('li', null, 'Is my emergency fund big enough, and where should I keep it?'),
+      el('li', null, 'Am I using my ISA and pension allowances in the best order?'),
+      el('li', null, 'Do I have the right protection for the people who depend on me?'),
+      el('li', null, 'Is my will up to date, and is inheritance tax something I should plan for?')),
+    MP.adviceCard('general')));
+
+  r.appendChild(el('p', { class: 'small muted' }, 'This summary is guidance, not personal financial advice. It was produced on this device and has not been shared with anyone.'));
+  main.appendChild(r);
+});
+</script>
+</body>
+</html>

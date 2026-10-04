@@ -108,8 +108,9 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
     bottom.appendChild(el('section', { class: 'card' }, el('h2', null, 'Recent activity'),
       act.length ? el('ul', { class: 'activity' }, act.slice(0, 8).map(function (a) { return el('li', null, a.text, el('span', { class: 'muted tiny' }, ' · ' + MP.fmtDate(a.at))); }))
         : el('p', { class: 'muted' }, 'Things you save in the tools will show here.')));
-    bottom.appendChild(accountCard());
+    bottom.appendChild(datesCard(p, goals));
     main.appendChild(bottom);
+    main.appendChild(el('div', { class: 'grid-2', style: { marginTop: '16px' } }, reportCard(), accountCard()));
   }
 
   var LABELS = { knowledge: { new: 'New to money matters', basics: 'Knows the basics', confident: 'Confident' }, advice: { diy: 'Prefers to do it themselves', maybe: 'Open to advice for big decisions', yes: 'Would like an adviser' } };
@@ -141,6 +142,56 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
         el('span', { class: 'chip' }, LABELS.advice[pr.advice] || 'Advice not set'),
         el('a', { href: 'guide.html?restart=1', id: 'redo-guide' }, 'Change my answers')),
       pr.advice === 'yes' ? MP.adviceCard('general') : null);
+  }
+
+  /* Upcoming money dates: tax year, Self Assessment, rule changes, the customer's own goals. */
+  function keyDates(p, goals) {
+    var now = new Date(), y = now.getFullYear(), list = [];
+    function next(m, d) { var t = new Date(y, m, d); if (t < now) t = new Date(y + 1, m, d); return t; }
+    list.push({ date: next(3, 5), title: 'Tax year ends', note: 'Last day to use this year\'s ISA allowance (£20,000) and pension allowances.' });
+    list.push({ date: next(0, 31), title: 'Self Assessment deadline', note: 'Online tax return and payment due, if you need to file one.' });
+    if (p.employment === 'self') list.push({ date: next(6, 31), title: 'Second payment on account', note: 'Self Assessment advance payment due.' });
+    [[new Date(2027, 3, 6), 'Rule changes from 6 April 2027', 'Cash ISA limit falls to £12,000 for under-65s, savings tax rates rise by 2%, and unused pensions start to count for inheritance tax.'],
+     [new Date(2028, 3, 6), 'Minimum pension age rises to 57', 'For most people, the earliest age to take a personal or workplace pension.']].forEach(function (c) {
+      if (c[0] > now) list.push({ date: c[0], title: c[1], note: c[2] });
+    });
+    goals.forEach(function (g) { var d = new Date(g.date); if (d > now) list.push({ date: d, title: (g.icon || '🎯') + ' ' + g.name, note: 'Target ' + MP.money(g.target) + ' · saved ' + MP.money(g.saved || 0) }); });
+    if (p.dob) {
+      var spa = UK.statePensionAge(p.dob), b = new Date(p.dob), d = new Date(b.getFullYear() + Math.floor(spa), b.getMonth() + Math.round((spa % 1) * 12), b.getDate());
+      if (d > now) list.push({ date: d, title: 'Your State Pension age', note: 'Check your forecast at gov.uk/check-state-pension.' });
+    }
+    return list.sort(function (a, b) { return a.date - b.date; });
+  }
+  function ics(list) {
+    function dt(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
+    function escIcs(t) { return String(t).replace(/[\\;,]/g, function (c) { return '\\' + c; }); }
+    var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Money Planner//EN', 'CALSCALE:GREGORIAN'];
+    list.forEach(function (e, i) {
+      var end = new Date(e.date); end.setDate(end.getDate() + 1);
+      lines.push('BEGIN:VEVENT', 'UID:mp-' + dt(e.date) + '-' + i + '@money-planner', 'DTSTAMP:' + stamp, 'DTSTART;VALUE=DATE:' + dt(e.date), 'DTEND;VALUE=DATE:' + dt(end),
+        'SUMMARY:' + escIcs(e.title.replace(/[^\x20-\x7E£]/g, '').trim()), 'DESCRIPTION:' + escIcs(e.note),
+        'BEGIN:VALARM', 'TRIGGER:-P14D', 'ACTION:DISPLAY', 'DESCRIPTION:' + escIcs(e.title), 'END:VALARM', 'END:VEVENT');
+    });
+    lines.push('END:VCALENDAR');
+    return lines.join('\r\n');
+  }
+  function datesCard(p, goals) {
+    var list = keyDates(p, goals), now = new Date();
+    return el('section', { class: 'card', 'aria-labelledby': 'h-dates' }, el('h2', { id: 'h-dates' }, 'Key dates'),
+      el('ul', { class: 'activity', id: 'key-dates' }, list.slice(0, 6).map(function (e) {
+        var days = Math.ceil((e.date - now) / 864e5);
+        return el('li', null, el('strong', null, e.title), el('span', { class: 'muted tiny' }, ' · ' + MP.fmtDate(e.date) + (days <= 60 ? ' (' + days + ' days)' : '')),
+          el('div', { class: 'small muted' }, e.note));
+      })),
+      el('button', { class: 'btn btn-sm', type: 'button', id: 'dates-ics', style: { marginTop: '10px' }, onclick: function () {
+        MP.download('money-dates.ics', ics(list), 'text/calendar'); MP.toast('Calendar file downloaded. Open it to add reminders.');
+      } }, '📅 Add to my calendar'));
+  }
+  function reportCard() {
+    return el('section', { class: 'card' }, el('h2', null, 'My money plan'),
+      el('p', { class: 'small muted' }, 'One page with your details, plan, dreams and saved results. Print it or save it as a PDF' + (MP.prefs().advice === 'yes' ? ' to take to an adviser.' : ' for your records.')),
+      el('a', { class: 'btn btn-sm', href: 'report.html', id: 'open-report' }, '🖨️ View and print'));
   }
 
   function stat(label, value, id) {
