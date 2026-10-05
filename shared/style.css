@@ -209,6 +209,14 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
 .auth-wrap { max-width: 440px; margin: 24px auto; }
 .auth-hero { text-align: center; margin-bottom: 18px; }
 .auth-hero .mp-logo { width: 56px; height: 56px; font-size: 1.4rem; margin: 0 auto 10px; background: var(--primary); color: var(--primary-ink); border-radius: 16px; }
+.auth-photo { height: 150px; border-radius: var(--radius); margin-bottom: 18px; background: var(--surface-2) url("../media/hero-signin.jpg") 78% 30% / cover no-repeat; }
+@media (min-width: 900px) {
+  .auth-wrap { max-width: 980px; display: grid; grid-template-columns: 1fr 440px; gap: 32px; align-items: start; }
+  .auth-photo { height: auto; min-height: 560px; align-self: stretch; margin: 0; background-position: 72% center; }
+}
+.home-banner { height: 210px; border-radius: var(--radius); margin: 8px 0 4px; background: var(--surface-2) url("../media/hero-home.jpg") 0% 22% / cover no-repeat; }
+@media (max-width: 600px) { .home-banner { height: 110px; } }
+@media print { .auth-photo, .home-banner { display: none; } }
 
 @media print {
   .mp-header, .mp-footer .no-print, .no-print, .mp-crumb { display: none !important; }

@@ -47,6 +47,7 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
     main.innerHTML = '';
     var first = (p.name || '').split(' ')[0];
     var hour = new Date().getHours();
+    main.appendChild(el('div', { class: 'home-banner', role: 'img', 'aria-label': 'A family planning their goals together at the kitchen table' }));
     main.appendChild(el('div', { class: 'hello' },
       el('div', null, el('h1', null, (hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening') + ', ' + first),
         el('p', { class: 'muted', style: { margin: 0 } }, 'Your plans are saved securely on this device.')),
