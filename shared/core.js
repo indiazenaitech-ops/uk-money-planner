@@ -246,7 +246,7 @@
   MP.vault = function () { return state.vault; };
   MP.profile = function () { return clone(state.vault ? state.vault.profile : {}); };
   /* A one-line summary of a tool's saved plan, shown on the home page. */
-  MP.summary = function (toolId, text) { MP.set('summaries.' + toolId, { text: text, at: Date.now() }); };
+  MP.summary = function (toolId, text) { MP.set('summaries.' + toolId, { text: text, at: Date.now(), examples: MP._exampleCount ? MP._exampleCount() : 0 }); };
   MP.log = function (text) {
     if (!state.vault) return;
     state.vault.activity.unshift({ text: text, at: Date.now() });
@@ -379,6 +379,7 @@
       else if (n.tagName === 'INPUT' || n.tagName === 'TEXTAREA') { type = n.closest('.money-input') ? 'money box (£)' : n.type === 'range' ? 'slider ' + n.min + ' to ' + n.max : (n.type || 'text') + ' box'; value = n.value; }
       else { type = n.getAttribute('role') === 'tab' ? 'tab' : n.tagName === 'A' ? 'link' : 'button'; if (n.getAttribute('aria-pressed') === 'true' || n.getAttribute('aria-selected') === 'true') state = 'selected'; }
       if (n.disabled) state = 'disabled until an answer is chosen';
+      if (n.classList.contains('is-example')) state = (state ? state + '; ' : '') + 'sample figure, not the customer\'s own';
       out.push({ id: n.dataset.mpCtl, type: type, label: label, value: value, state: state });
     });
     return out.slice(0, 80);
@@ -453,7 +454,7 @@
      MP.term('isa') → a clickable term that shows its meaning. MP.explain('isa') → an inline explanation
      that only beginners see (hidden by CSS for other knowledge levels). Definitions live in shared/glossary.js. */
   /* ---------- narrated audio (pre-recorded with ElevenLabs Eleven v4; files in /audio, work offline) ---------- */
-  MP.AUDIO = ['welcome', 'guide-knowledge', 'guide-detail', 'guide-advice', 'guide-priorities', 'guide-plan',
+  MP.AUDIO = ['welcome', 'guide-mode', 'guide-knowledge', 'guide-detail', 'guide-advice', 'guide-priorities', 'guide-plan',
     'isa', 'lisa', 'emergency-fund', 'inflation', 'compound-interest', 'pension', 'auto-enrolment', 'tax-relief',
     'salary-sacrifice', 'state-pension', 'annuity', 'drawdown', 'apr', 'aer', 'iht', 'adviser'];
   var player = null, playingBtn = null;
@@ -565,6 +566,98 @@
   }
 
   /* MP.page({id, title, icon}) → Promise<vault>. Redirects to sign-in when there is no session. */
+  /* ---------- example figures vs the customer's own ----------
+     Tools open with sample figures so they work straight away. On tool pages every number box still holding a
+     sample is marked "Example" until the customer types in it, so it is obvious what they have filled in.
+     Figures that match their own profile or guided-setup answers count as theirs. Saved per tool at 'mine.<id>'. */
+  function exampleLayer(toolId) {
+    var root = document.getElementById('app');
+    if (!root) return;
+    var mine = MP.get('mine.' + toolId, {}) || {};
+    var clearing = false, queued = false, count = 0;
+    var known = {};
+    (function () {
+      var p = MP.profile(), a = (p.prefs && p.prefs.answers) || {};
+      [p.salary, p.dob, p.partnerSalary, p.retireAge].concat(Object.keys(a).map(function (k) { return a[k]; })).forEach(function (v) {
+        if (v == null || v === '' || typeof v === 'object') return;
+        var n = num(v, NaN); known[String(v)] = 1; if (isFinite(n) && n) known[String(n)] = 1;
+      });
+    })();
+    function key(n) {
+      if (n.id && !/^f-/.test(n.id)) return n.id;
+      var f = n.closest('.field'), l = f && f.querySelector('label');
+      return 'l:' + (l ? l.textContent.trim() : (n.name || n.placeholder || ''));
+    }
+    function eligible(n) {
+      return n.tagName === 'INPUT' && (n.type === 'number' || n.type === 'date') && !n.readOnly && !n.disabled && !n.closest('[data-no-example]');
+    }
+    function isExample(n) {
+      var v = String(n.value || '').trim();
+      if (!v || num(v, 0) === 0 && n.type === 'number') return false;
+      if (mine[key(n)] === 1) return false;
+      if (mine[key(n)] === 2) return 'assumption';
+      return !(known[v] || known[String(num(v, NaN))]);
+    }
+    var bar = el('div', { class: 'mp-examples no-print', id: 'mp-examples', role: 'status', 'aria-live': 'polite', hidden: true });
+    root.parentNode.insertBefore(bar, root);
+    function drawBar() {
+      if (!count) { bar.hidden = true; return; }
+      bar.hidden = false; bar.innerHTML = '';
+      bar.appendChild(el('span', { class: 'ex-tag', 'aria-hidden': 'true' }, 'Example'));
+      bar.appendChild(el('span', null, el('strong', null, count + (count === 1 ? ' box shows' : ' boxes show') + ' sample figures. '),
+        'Change the ones that apply to you and leave the rest. Your own figures show in solid boxes.'));
+      bar.appendChild(el('button', { type: 'button', class: 'btn btn-sm', id: 'mp-clear-examples', onclick: clearExamples }, 'Clear examples'));
+    }
+    function mark() {
+      queued = false;
+      var c = 0;
+      $$('input', root).forEach(function (n) {
+        if (!eligible(n)) return;
+        var r = isExample(n), ex = r === true, as = r === 'assumption';
+        if (ex && n.offsetParent !== null) c++;
+        n.classList.toggle('is-example', ex);
+        var f = n.closest('.field');
+        if (f) { f.classList.toggle('has-example', ex); f.classList.toggle('has-assumption', as); }
+      });
+      count = c; drawBar();
+      var sm = MP.get('summaries.' + toolId, null);
+      if (sm && (sm.examples || 0) !== c) { sm.examples = c; MP.set('summaries.' + toolId, sm); }
+      return c;
+    }
+    function queue() { if (!queued) { queued = true; requestAnimationFrame(mark); } }
+    function own(e) {
+      var n = e.target;
+      if (clearing || !eligible(n)) return;
+      var k = key(n);
+      if (mine[k] !== 1) { mine[k] = 1; MP.set('mine.' + toolId, mine); }
+      queue();
+    }
+    function clearExamples() {
+      if (!MP.confirm('Clear all the sample figures in this tool? Results will update as you fill in your own.')) return;
+      clearing = true;
+      for (var i = 0; i < 300; i++) {
+        var n = $$('input.is-example', root).filter(function (x) { return String(x.value) !== ''; })[0];
+        if (!n) break;
+        n.value = ''; n.classList.remove('is-example');
+        n.dispatchEvent(new Event('input', { bubbles: true })); n.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      clearing = false;
+      // boxes the tool refills (growth rates, ages and other standard assumptions) are kept and labelled as assumptions
+      var kept = 0;
+      $$('input.is-example', root).forEach(function (n) { mine[key(n)] = 2; kept++; });
+      MP.set('mine.' + toolId, mine);
+      mark();
+      MP.toast(kept ? 'Examples cleared. ' + kept + ' standard ' + (kept === 1 ? 'assumption is' : 'assumptions are') + ' kept and labelled; change them if you like.' : 'Examples cleared. Fill in only what applies to you.');
+    }
+    root.addEventListener('input', own, true);
+    root.addEventListener('change', own, true);
+    // typing over an example replaces it in one go
+    root.addEventListener('focusin', function (e) { var n = e.target; if (n.classList && n.classList.contains('is-example')) { try { n.select(); } catch (err) { } } });
+    new MutationObserver(queue).observe(root, { childList: true, subtree: true });
+    MP._exampleCount = mark;
+    mark();
+  }
+
   MP.page = function (opts) {
     opts = opts || {};
     if (opts.title) document.title = opts.title + ' · ' + (CFG.product || 'Waymark');
@@ -581,6 +674,7 @@
       }
       document.body.appendChild(footer());
       startIdleWatch();
+      if (/\/apps\//.test(location.pathname)) exampleLayer(opts.id);
       // the optional live guide lives in the top window only (tools it opens run in a panel iframe)
       if (CFG.liveGuide && CFG.liveGuide.agentId && window.top === window && !opts.noGuide) {
         document.head.appendChild(el('script', { src: MP.root() + 'shared/live-guide.js', defer: true }));

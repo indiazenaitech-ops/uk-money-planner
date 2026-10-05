@@ -4,6 +4,7 @@ module.exports = async ({ page, expect, url }) => {
   const choose = async (value) => { await page.check(`.guide-card input[value="${value}"]`); await page.click('#guide-next'); };
   const seen = [];
   const answers = {
+    mode: () => choose('full'),
     knowledge: () => choose('new'),
     detail: () => choose('simple'),
     advice: () => choose('yes'),
@@ -70,11 +71,34 @@ module.exports = async ({ page, expect, url }) => {
   await page.goto(url('home.html'));
   await page.waitForSelector('#your-plan');
   expect(await page.locator('#home-plan li').count() >= 3, 'plan shown on the dashboard');
+  await page.click('#tab-tools');
   await page.click('#mp-detail-detailed');
   await page.waitForTimeout(400);
   await page.reload();
-  await page.waitForSelector('#your-plan');
+  await page.waitForSelector('#tab-overview');
   expect(await page.getAttribute('html', 'data-detail') === 'detailed', 'detail preference survives reload');
   await page.goto(url('guide.html?restart=1'));
   await page.waitForSelector('.guide-card');
+
+  // quick start: only priorities and about you, then the plan
+  await page.goto(url('guide.html?restart=1'));
+  await page.waitForSelector('.guide-card');
+  await page.check('.guide-card input[value="quick"]'); await page.click('#guide-next');
+  const qs = [];
+  for (let i = 0; i < 6; i++) {
+    const s = await step();
+    if (s === 'plan') break;
+    qs.push(s);
+    if (s === 'priorities') { await page.click('.choice-tile[data-value="safety"]'); await page.click('#guide-next'); }
+    else if (s === 'about') await page.click('#guide-next');
+    else throw new Error('quick start asked ' + s);
+    await page.waitForTimeout(60);
+  }
+  expect(await step() === 'plan' && qs.length === 2, 'quick start reaches the plan after 2 questions: ' + qs.join(','));
+  // skip goes straight to the tools
+  await page.goto(url('guide.html?restart=1'));
+  await page.waitForSelector('.guide-card');
+  await page.check('.guide-card input[value="skip"]'); await page.click('#guide-next');
+  await page.waitForURL(/home\.html/);
+  expect(/home\.html#tools/.test(page.url()), 'skip takes you to the tools');
 };

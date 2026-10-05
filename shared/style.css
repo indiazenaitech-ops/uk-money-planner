@@ -214,7 +214,7 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
   .auth-wrap { max-width: 980px; display: grid; grid-template-columns: 1fr 440px; gap: 32px; align-items: start; }
   .auth-photo { height: auto; min-height: 560px; align-self: stretch; margin: 0; background-position: 72% center; }
 }
-.home-banner { height: 210px; border-radius: var(--radius); margin: 8px 0 4px; background: var(--surface-2) url("../media/hero-home.jpg") 0% 22% / cover no-repeat; }
+.home-banner { height: 170px; border-radius: var(--radius); margin: 8px 0 4px; background: var(--surface-2) url("../media/hero-home.jpg") 0% 22% / cover no-repeat; }
 @media (max-width: 600px) { .home-banner { height: 110px; } }
 @media print { .auth-photo, .home-banner { display: none; } }
 
@@ -230,3 +230,23 @@ table.table { width: 100%; border-collapse: collapse; font-variant-numeric: tabu
 .listen[aria-pressed="true"] { background: var(--info-soft); }
 .term-tip .listen { margin-top: 4px; }
 .mp-guided { outline: 4px solid var(--accent) !important; outline-offset: 3px; box-shadow: 0 0 0 8px var(--accent-soft) !important; transition: outline-color .2s; }
+
+/* ---------- example figures (sample values the customer has not changed yet) ---------- */
+input.is-example { border-style: dashed; color: var(--muted); font-style: italic; background: var(--surface-2); }
+input.is-example:focus { font-style: normal; color: var(--text); }
+.field.has-example > label::after { content: "Example"; margin-inline-start: 8px; padding: 1px 7px; border-radius: 999px; font-size: .72rem; font-weight: 600; vertical-align: 1px; background: var(--warning-soft); color: var(--text); border: 1px dashed var(--border); }
+.mp-examples { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; width: calc(100% - 32px); max-width: calc(var(--maxw) - 32px); margin: 8px auto 0; box-sizing: border-box; padding: 10px 14px; border: 1px dashed var(--border); border-radius: var(--radius-sm); background: var(--surface-2); font-size: .92rem; }
+.mp-examples .ex-tag { padding: 1px 8px; border-radius: 999px; font-size: .75rem; font-weight: 600; background: var(--warning-soft); border: 1px dashed var(--border); }
+.mp-examples > span:nth-child(2) { flex: 1 1 260px; }
+.field.has-assumption > label::after { content: "Assumption"; margin-inline-start: 8px; padding: 1px 7px; border-radius: 999px; font-size: .72rem; font-weight: 600; vertical-align: 1px; background: var(--info-soft); color: var(--text); }
+
+/* ---------- gentle motion (skipped for people who prefer reduced motion) ---------- */
+@keyframes mp-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mp-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  main#app { animation: mp-fade .35s ease both; }
+  .enter, .tabpanel-enter { animation: mp-rise .32s ease both; }
+  a.tile, .glance-tile, .home-plan li, .btn, .choice, .choice-tile { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease; }
+  a.tile:hover, a.glance-tile:hover, .home-plan li:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+}

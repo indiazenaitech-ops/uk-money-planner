@@ -41,6 +41,12 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
 
   /* Every possible question. `when` decides whether it is asked. */
   var STEPS = [
+    { id: 'mode', type: 'choice', title: 'How would you like to start?',
+      help: 'You can change your answers, or go deeper, at any time from your home page.',
+      options: [
+        { value: 'quick', label: 'Quick start', hint: 'Two short questions, about a minute. We will suggest where to begin.' },
+        { value: 'full', label: 'Full personal plan', hint: '3 to 5 minutes. Questions tailored to you for a detailed, step-by-step plan.' },
+        { value: 'skip', label: 'Skip, take me to the tools', hint: 'Go straight to the tools and fill in only what is relevant to you.' }] },
     { id: 'knowledge', type: 'choice', title: 'How confident do you feel about money matters?',
       help: 'There are no wrong answers. We use this to explain things at the right level.',
       options: [
@@ -131,7 +137,13 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
     { id: 'plan', type: 'plan', title: 'Your personal plan' }
   ];
 
-  function activeSteps() { return STEPS.filter(function (s) { return !s.when || s.when(); }); }
+  var QUICK = { mode: 1, priorities: 1, about: 1, plan: 1 };
+  function activeSteps() {
+    return STEPS.filter(function (s) {
+      if (A.mode === 'quick' && !QUICK[s.id]) return false;
+      return !s.when || s.when();
+    });
+  }
   function saveDraft() { MP.set('tools.guide', { answers: A, step: stepIndex }); }
 
   function render() {
@@ -170,6 +182,14 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
         if (v === undefined) return;
         A[s.id] = v;
         if (s.id === 'about') Object.assign(A, v), delete A.about;
+        if (s.id === 'mode') {
+          if (v === 'skip') { skipToTools(); return; }
+          if (v === 'quick') { // sensible defaults for the questions a quick start leaves out
+            if (!A.knowledge) A.knowledge = 'basics';
+            if (!A.detail) A.detail = 'simple';
+            if (!A.advice) A.advice = 'maybe';
+          }
+        }
         stepIndex++; saveDraft(); render();
       };
     }
@@ -386,6 +406,11 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
     if (urgent.length) MP.toast('Step 1 is urgent: please look at it today.');
   }
 
+  function skipToTools() {
+    MP.setPrefs({ onboarded: false, skipped: true, knowledge: A.knowledge || 'basics', detail: A.detail || 'simple', advice: A.advice || 'maybe' });
+    MP.set('tools.guide', null);
+    location.href = 'home.html#tools';
+  }
   function skip() {
     if (!prefs.onboarded) MP.setPrefs({ onboarded: false, skipped: true });
     location.href = 'home.html';

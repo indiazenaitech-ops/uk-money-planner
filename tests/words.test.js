@@ -5,7 +5,7 @@ module.exports = async ({ page, expect, url, ROOT }) => {
   // every listed clip exists on disk and is a real MP3
   const keys = await page.evaluate(() => MP.AUDIO);
   const missing = keys.filter((k) => { const f = path.join(ROOT, 'audio', k + '.mp3'); return !fs.existsSync(f) || fs.statSync(f).size < 20000; });
-  expect(keys.length === 22 && missing.length === 0, 'all recordings present: missing ' + missing.join(','));
+  expect(keys.length === 23 && missing.length === 0, 'all recordings present: missing ' + missing.join(','));
   await page.goto(url('words.html'));
   await page.waitForSelector('#words-list .word');
   const total = await page.locator('#words-list .word').count();
@@ -25,5 +25,7 @@ module.exports = async ({ page, expect, url, ROOT }) => {
   // guided setup questions offer narration
   await page.goto(url('guide.html?restart=1'));
   await page.waitForSelector('.guide-card');
-  expect(await page.locator('.guide-card .listen[data-audio="guide-knowledge"]').count() === 1, 'first guide question is narrated');
+  expect(await page.locator('.guide-card .listen[data-audio="guide-mode"]').count() === 1, 'first guide question is narrated');
+  await page.check('.guide-card input[value="full"]'); await page.click('#guide-next');
+  expect(await page.locator('.guide-card .listen[data-audio="guide-knowledge"]').count() === 1, 'the next question is narrated too');
 };

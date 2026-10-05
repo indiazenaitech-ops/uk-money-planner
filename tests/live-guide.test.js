@@ -42,13 +42,13 @@ module.exports = async ({ page, expect, url }) => {
 
   // the guide can operate the guided setup: pick an answer and press Next
   await page.evaluate(() => window.__lgTools.open_tool({ tool_id: 'guide' }));
-  await frame.locator('[data-step="knowledge"]').waitFor();
+  await frame.locator('[data-step="mode"]').waitFor();
   const ctls = await page.evaluate(() => window.__lgTools.get_screen_controls());
-  expect(/choice \| I'm new to this/.test(ctls) && /button \| Next/.test(ctls), 'controls list the answers and Next: ' + ctls.split('\n').slice(0, 4).join(' / '));
-  const picked = await page.evaluate(() => window.__lgTools.click_control({ control: "I'm new to this" }));
+  expect(/choice \| Full personal plan/.test(ctls) && /button \| Next/.test(ctls), 'controls list the answers and Next: ' + ctls.split('\n').slice(0, 4).join(' / '));
+  const picked = await page.evaluate(() => window.__lgTools.click_control({ control: 'Full personal plan' }));
   expect(/Selected/.test(picked), 'guide selects an answer: ' + picked);
   const next = await page.evaluate(() => window.__lgTools.click_control({ control: 'Next' }));
-  await frame.locator('[data-step="detail"]').waitFor({ timeout: 5000 });
+  await frame.locator('[data-step="knowledge"]').waitFor({ timeout: 5000 });
   expect(/Pressed "Next"/.test(next), 'guide presses Next and the next question appears');
 
   // ...and fill a box in a tool

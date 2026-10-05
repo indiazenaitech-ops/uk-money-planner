@@ -26,7 +26,7 @@ async function signUp(page) {
   await page.waitForURL(/guide\.html/, { timeout: 20000 });
   await page.waitForSelector('#guide-q');
   await page.goto(url('home.html'));
-  await page.waitForSelector('#profile-form');
+  await page.waitForSelector('#glance');
 }
 
 async function checkPage(browser, id) {

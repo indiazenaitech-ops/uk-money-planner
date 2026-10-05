@@ -140,6 +140,20 @@ savingsMonths, essentialCosts, leftover, debtFeel, debtTotal, homeFirst, homePri
 investExp, riskReaction, pensionKnow, pensionTotal, retireAge, dependants, cover, will, family, selfEmp, job`.
 `MP.profile()` also gains `retireAge`, `partnerSalary` and `riskAttitude` from the guide.
 
+### Example figures, quick start and the home dashboard
+
+- **Example figures.** Tools open with sample values so they work straight away. On tool pages, `exampleLayer()` in
+  `shared/core.js` marks every number box still holding a sample as "Example" (dashed, grey) until the customer types in it;
+  a strip at the top counts them and offers "Clear examples". Values that match the customer's profile or guided-setup
+  answers count as theirs. Boxes a tool refills after clearing (growth rates, ages) are labelled "Assumption". Ownership is
+  saved per tool at `mine.<id>`; summaries record how many sample figures they used (`summaries.<id>.examples`), and the live
+  guide's screen controls say which boxes are samples.
+- **Guided setup** opens with a choice: Quick start (priorities and about you, then the plan), Full personal plan, or skip
+  straight to the tools.
+- **Home** is tabbed (Overview, Tools, About me, More; the tab is kept in the URL hash). Overview shows "Your money at a
+  glance" (take-home pay, safety net, dreams, State Pension or retirement result, with sample-based figures flagged), the
+  next three steps, the details still missing, and the personal plan as step boxes.
+
 ### UK runtime (shared/uk.js)
 
 ```
