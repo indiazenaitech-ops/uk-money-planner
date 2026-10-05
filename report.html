@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>My money plan · Money Planner</title>
+<title>My money plan · Waymark</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="shared/style.css">
 <style>
@@ -43,7 +43,7 @@ MP.page({ id: 'report', title: 'My money plan', noToggle: true }).then(function 
   r.appendChild(el('div', { class: 'row no-print', style: { justifyContent: 'flex-end' } },
     el('button', { class: 'btn btn-primary', type: 'button', id: 'print', onclick: function () { window.print(); } }, '🖨️ Print or save as PDF')));
   r.appendChild(el('h1', null, 'My money plan'));
-  r.appendChild(el('p', { class: 'muted' }, (p.name || '') + ' · prepared ' + MP.fmtDate(new Date()) + ' with ' + (MP.config.product || 'Money Planner') + '. Figures are estimates for the ' + UK.R.taxYear + ' tax year.'));
+  r.appendChild(el('p', { class: 'muted' }, (p.name || '') + ' · prepared ' + MP.fmtDate(new Date()) + ' with ' + (MP.config.product || 'Waymark') + '. Figures are estimates for the ' + UK.R.taxYear + ' tax year.'));
 
   r.appendChild(el('section', { class: 'card' }, el('h2', null, 'About me'), el('div', { class: 'kv' },
     kv('Age', p.dob ? String(UK.age(p.dob)) : ''), kv('Lives in', REG[p.region]), kv('Yearly income before tax', p.salary ? MP.money(p.salary) : ''),

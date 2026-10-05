@@ -1,4 +1,4 @@
-/* Money Planner core runtime: window.MP
+/* Waymark core runtime: window.MP
    - Accounts live only on this device. Each customer's data ("vault") is encrypted with AES-GCM
      using a key derived from their password (PBKDF2-SHA256). Nothing is ever sent to a server.
    - The derived key is kept in sessionStorage for the open tab, so moving between tools does not
@@ -518,7 +518,7 @@
     MP.download('money-planner-backup-' + isoDate(new Date()) + '.json', JSON.stringify(state.vault, null, 2), 'application/json');
   };
   MP.importData = function (obj) {
-    if (!obj || typeof obj !== 'object' || !obj.profile) throw new Error('That file is not a Money Planner backup.');
+    if (!obj || typeof obj !== 'object' || !obj.profile) throw new Error('That file is not a Waymark backup.');
     state.vault = migrate(obj); scheduleSave();
   };
 
@@ -551,8 +551,8 @@
     return el('header', { class: 'mp-header' },
       el('div', { class: 'mp-header-in' },
         el('a', { class: 'mp-brand', href: root + (signedIn ? 'home.html' : 'index.html') },
-          el('span', { class: 'mp-logo', 'aria-hidden': 'true' }, CFG.logoText || 'MP'),
-          el('span', null, CFG.product || 'Money Planner', el('small', null, CFG.brand || ''))),
+          el('span', { class: 'mp-logo', 'aria-hidden': 'true' }, CFG.logoText || 'W'),
+          el('span', null, CFG.product || 'Waymark', el('small', null, CFG.brand || ''))),
         el('span', { class: 'mp-spacer' }), right));
   }
   function footer() {
@@ -567,7 +567,7 @@
   /* MP.page({id, title, icon}) → Promise<vault>. Redirects to sign-in when there is no session. */
   MP.page = function (opts) {
     opts = opts || {};
-    if (opts.title) document.title = opts.title + ' · ' + (CFG.product || 'Money Planner');
+    if (opts.title) document.title = opts.title + ' · ' + (CFG.product || 'Waymark');
     return resume().then(function (ok) {
       if (ok !== true) {
         location.replace(MP.root() + 'index.html?next=' + encodeURIComponent(location.pathname.split('/').slice(-3).join('/')) + (ok === 'idle' ? '&signedout=idle' : ''));

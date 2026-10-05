@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Money Planner</title>
+<title>Waymark</title>
 <meta name="description" content="Plan for retirement, savings, investments and life goals. Private, on-device financial planning tools.">
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="shared/style.css">
@@ -14,10 +14,10 @@
     <div class="auth-photo" role="img" aria-label="Someone relaxing at home with a cup of tea and a laptop"></div>
     <div class="auth-main">
     <div class="auth-hero">
-      <div class="mp-logo" id="hero-logo" aria-hidden="true">MP</div>
-      <h1 id="hero-title">Money Planner</h1>
-      <p class="muted">Plan for retirement, savings, investments and the things you dream of, all in one place.</p>
-      <p class="small"><a href="media/money-planner-explainer.mp4" id="intro-video" target="_blank" rel="noopener">▶ Watch the 40-second intro</a></p>
+      <div class="mp-logo" id="hero-logo" aria-hidden="true">W</div>
+      <h1 id="hero-title">Waymark</h1>
+      <p class="muted"><strong>Find your way with money.</strong> Plan for retirement, savings, investments and the things you dream of, all in one place.</p>
+      <p class="small"><a href="media/waymark-explainer.mp4" id="intro-video" target="_blank" rel="noopener">▶ Watch the 40-second intro</a></p>
     </div>
     <div id="notice" role="status" aria-live="polite"></div>
     <div class="card">
@@ -61,8 +61,8 @@
 (function () {
   var $ = MP.$, params = new URLSearchParams(location.search);
   var C = MP.config;
-  MP.$('#hero-logo').textContent = C.logoText || 'MP';
-  MP.$('#hero-title').textContent = (C.product || 'Money Planner');
+  MP.$('#hero-logo').textContent = C.logoText || 'W';
+  MP.$('#hero-title').textContent = (C.product || 'Waymark');
 
   function next() {
     var n = params.get('next') || '';

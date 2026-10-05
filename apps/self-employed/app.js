@@ -132,7 +132,7 @@ MP.page({ id: 'self-employed', title: 'Self-employed tax' }).then(function () {
   }
   function buildIcs(r) {
     var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
-    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Money Planner//Self-employed tax//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Self Assessment dates 2026/27'];
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Waymark//Self-employed tax//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:Self Assessment dates 2026/27'];
     keyDates(r).forEach(function (d, i) {
       var start = d.date.replace(/-/g, '');
       var end = new Date(d.date + 'T12:00:00Z'); end.setUTCDate(end.getUTCDate() + 1);

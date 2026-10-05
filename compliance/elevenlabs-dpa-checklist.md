@@ -2,7 +2,7 @@
 
 **Status: DRAFT, prepared for the institution's DPO, procurement and legal teams. It is not legal advice and is not a signed agreement.**
 The institution (not the app developer) must sign a Data Processing Agreement (DPA) with ElevenLabs before real customers use the live guide.
-Prepared 4 October 2026 for the "Money Planner Guide" agent (`agent_9201m445gfbxfkd9jjep093q5rqy`).
+Prepared 4 October 2026 for the "Waymark Guide" agent (`agent_9201m445gfbxfkd9jjep093q5rqy`).
 
 ## 1. Roles
 

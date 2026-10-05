@@ -1,4 +1,4 @@
-# Money Planner (UK)
+# Waymark (UK)
 
 A white-label library of personal finance planning tools for customers of a UK financial institution:
 retirement, savings and ISAs, investments, budgeting from bank statements, a "money inbox" for bills in
@@ -31,7 +31,7 @@ It loads the ElevenLabs Agents widget (pinned in `config.js`) only after the cus
 dynamic variables (knowledge level, Simple/Detailed, advice preference, current page). The customer's plan is shared only
 if they tick "Let the guide see my plan".
 
-The agent (ElevenLabs workspace: "Money Planner Guide", voice model Eleven v4) has a guidance-only system prompt, a
+The agent (ElevenLabs workspace: "Waymark Guide", voice model Eleven v4) has a guidance-only system prompt, a
 knowledge base (how the app works, 2026/27 UK figures, glossary) and five client tools that this file implements:
 
 | Tool | What it does |

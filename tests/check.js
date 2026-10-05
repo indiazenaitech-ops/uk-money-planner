@@ -1,4 +1,4 @@
-/* Money Planner checks. Usage: node tests/check.js [toolId|home|all]
+/* Waymark checks. Usage: node tests/check.js [toolId|home|all]
    For each page: create an account through the real sign-in form, open the page over file://,
    fail on console errors, run tests/<id>.test.js if present, check nothing scrolls sideways at
    390 px, and save screenshots to tests/shots/<id>/ (desktop, mobile, dark, after-test). */

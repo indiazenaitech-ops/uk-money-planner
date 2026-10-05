@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Home · Money Planner</title>
+<title>Home · Waymark</title>
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="shared/style.css">
 <style>
@@ -168,7 +168,7 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
     function dt(d) { return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0'); }
     function escIcs(t) { return String(t).replace(/[\\;,]/g, function (c) { return '\\' + c; }); }
     var stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
-    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Money Planner//EN', 'CALSCALE:GREGORIAN'];
+    var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Waymark//EN', 'CALSCALE:GREGORIAN'];
     list.forEach(function (e, i) {
       var end = new Date(e.date); end.setDate(end.getDate() + 1);
       lines.push('BEGIN:VEVENT', 'UID:mp-' + dt(e.date) + '-' + i + '@money-planner', 'DTSTAMP:' + stamp, 'DTSTART;VALUE=DATE:' + dt(e.date), 'DTEND;VALUE=DATE:' + dt(end),
@@ -243,7 +243,7 @@ MP.page({ id: 'home', title: 'Home' }).then(function () {
     MP.files.pick('.json,application/json').then(function (files) {
       if (!files[0]) return;
       return MP.files.text(files[0]).then(function (txt) {
-        var obj; try { obj = JSON.parse(txt); } catch (e) { throw new Error('That file is not a Money Planner backup.'); }
+        var obj; try { obj = JSON.parse(txt); } catch (e) { throw new Error('That file is not a Waymark backup.'); }
         if (!MP.confirm('Replace everything in this account with the backup?')) return;
         MP.importData(obj); MP.log('Imported a backup'); MP.toast('Backup imported.'); render();
       });

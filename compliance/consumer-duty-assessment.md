@@ -1,11 +1,11 @@
-# Consumer Duty assessment: Money Planner and its live guide
+# Consumer Duty assessment: Waymark and its live guide
 
 **Status: DRAFT for review by the institution's Compliance, Consumer Duty champion and Risk teams. It is not regulatory sign-off or legal advice.**
-Prepared 4 October 2026. Scope: the Money Planner web app (16 tools, guided setup, printable plan) and the optional ElevenLabs live guide, **including the guide acting on screen for the customer** (choosing answers, pressing Next, filling in boxes).
+Prepared 4 October 2026. Scope: the Waymark web app (16 tools, guided setup, printable plan) and the optional ElevenLabs live guide, **including the guide acting on screen for the customer** (choosing answers, pressing Next, filling in boxes).
 
 ## 1. Summary
 
-Money Planner gives **guidance, not regulated advice**. It helps customers understand their position and options, and points to regulated advice (unbiased.co.uk, the FCA Register) and free guidance (MoneyHelper, Pension Wise, debt charities).
+Waymark gives **guidance, not regulated advice**. It helps customers understand their position and options, and points to regulated advice (unbiased.co.uk, the FCA Register) and free guidance (MoneyHelper, Pension Wise, debt charities).
 
 The live guide adds a new risk. An AI agent can now act on the customer's screen, so it could put words in their mouth: answer a question for them, or enter a figure they didn't give. The controls below are designed so that the guide only does what the customer clearly asked, can't do anything destructive, and that everything it does is visible and logged.
 
@@ -22,7 +22,7 @@ The live guide adds a new risk. An AI agent can now act on the customer's screen
 
 ## 3. The four outcomes (PRIN 2A)
 
-| Outcome | How Money Planner supports it | Evidence |
+| Outcome | How Waymark supports it | Evidence |
 |---|---|---|
 | **Products and services** | Free tool for the institution's customers. Designed for people with any level of knowledge, with Simple/Detailed views and a beginner mode | Guided setup asks about knowledge, detail and advice preference (`shared/guide.js`) |
 | **Price and value** | No charge, no product sales, no data monetisation. Data stays on the device | README privacy model; no backend |

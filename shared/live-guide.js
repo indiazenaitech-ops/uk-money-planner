@@ -118,7 +118,7 @@
     updateLauncher();
     MP.modal(el('div', null,
       el('p', null, 'The live guide couldn\'t start here. It needs an internet connection, and some previews and corporate networks block it.'),
-      el('p', { class: 'small muted' }, 'Everything else in Money Planner works as normal. Try again later, or from your bank\'s website or app.')), { title: 'Guide unavailable' });
+      el('p', { class: 'small muted' }, 'Everything else in Waymark works as normal. Try again later, or from your bank\'s website or app.')), { title: 'Guide unavailable' });
   }
 
   /* ---------- tool panel ---------- */
