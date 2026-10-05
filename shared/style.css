@@ -250,3 +250,7 @@ input.is-example:focus { font-style: normal; color: var(--text); }
   a.tile, .glance-tile, .home-plan li, .btn, .choice, .choice-tile { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background-color .18s ease; }
   a.tile:hover, a.glance-tile:hover, .home-plan li:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
 }
+.auth-points { list-style: none; padding: 0; margin: 12px auto 4px; display: grid; gap: 6px; text-align: start; max-width: 380px; font-size: .92rem; }
+.auth-points li { display: flex; gap: 8px; align-items: flex-start; }
+:root[data-theme="dark"] .home-banner, :root[data-theme="dark"] .auth-photo { filter: brightness(.8) saturate(.9); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .home-banner, :root:not([data-theme="light"]) .auth-photo { filter: brightness(.8) saturate(.9); } }

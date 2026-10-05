@@ -578,7 +578,7 @@
     var known = {};
     (function () {
       var p = MP.profile(), a = (p.prefs && p.prefs.answers) || {};
-      [p.salary, p.dob, p.partnerSalary, p.retireAge].concat(Object.keys(a).map(function (k) { return a[k]; })).forEach(function (v) {
+      [p.salary, p.dob, p.partnerSalary, p.retireAge, p.dob && window.UK ? UK.age(p.dob) : null].concat(Object.keys(a).map(function (k) { return a[k]; })).forEach(function (v) {
         if (v == null || v === '' || typeof v === 'object') return;
         var n = num(v, NaN); known[String(v)] = 1; if (isFinite(n) && n) known[String(n)] = 1;
       });
@@ -670,7 +670,7 @@
       document.body.insertBefore(header(true), document.body.firstChild);
       if (opts.id !== 'home') {
         document.body.insertBefore(el('nav', { class: 'mp-crumb no-print', 'aria-label': 'Breadcrumb' },
-          el('a', { href: MP.root() + 'home.html', id: 'mp-back' }, '← All tools'), opts.noToggle ? null : MP.detailToggle()), main);
+          el('a', { href: MP.root() + 'home.html', id: 'mp-back' }, opts.backLabel || '← All tools'), opts.noToggle ? null : MP.detailToggle()), main);
       }
       document.body.appendChild(footer());
       startIdleWatch();

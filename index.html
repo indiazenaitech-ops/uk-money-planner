@@ -14,9 +14,13 @@
     <div class="auth-photo" role="img" aria-label="Someone relaxing at home with a cup of tea and a laptop"></div>
     <div class="auth-main">
     <div class="auth-hero">
-      <div class="mp-logo" id="hero-logo" aria-hidden="true">W</div>
       <h1 id="hero-title">Waymark</h1>
       <p class="muted"><strong>Find your way with money.</strong> Plan for retirement, savings, investments and the things you dream of, all in one place.</p>
+      <ul class="auth-points">
+        <li><span aria-hidden="true">🔒</span> Private: your plans are encrypted and stay on this device</li>
+        <li><span aria-hidden="true">🧭</span> 16 tools for retirement, savings, homes, tax and family</li>
+        <li><span aria-hidden="true">🎧</span> A voice guide that can talk you through every step</li>
+      </ul>
       <p class="small"><a href="media/waymark-explainer.mp4" id="intro-video" target="_blank" rel="noopener">▶ Watch the 40-second intro</a></p>
     </div>
     <div id="notice" role="status" aria-live="polite"></div>
@@ -61,7 +65,6 @@
 (function () {
   var $ = MP.$, params = new URLSearchParams(location.search);
   var C = MP.config;
-  MP.$('#hero-logo').textContent = C.logoText || 'W';
   MP.$('#hero-title').textContent = (C.product || 'Waymark');
 
   function next() {

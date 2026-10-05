@@ -27,10 +27,18 @@
     updateLauncher();
     launcher.onclick = function () { if (widget) settings(); else consent(); };
     document.body.appendChild(launcher);
+    document.body.classList.add('lg-has-launcher');
+    // full label near the top of the page, a small round button while scrolling so it does not cover content
+    function fold() { launcher.classList.toggle('lg-folded', window.scrollY > 120); }
+    window.addEventListener('scroll', fold, { passive: true }); fold();
   }
   function updateLauncher() {
     if (!launcher) return;
-    launcher.textContent = widget ? '⚙️ Guide settings' : '🎧 Talk to your guide';
+    var label = widget ? 'Guide settings' : 'Talk to your guide';
+    launcher.innerHTML = '';
+    launcher.appendChild(el('span', { class: 'lg-ico', 'aria-hidden': 'true' }, widget ? '⚙️' : '🎧'));
+    launcher.appendChild(el('span', { class: 'lg-label' }, label));
+    launcher.setAttribute('aria-label', label); launcher.title = label;
     launcher.classList.toggle('lg-small', !!widget);
   }
 
@@ -242,6 +250,11 @@
   css.textContent = [
     '.lg-launcher{position:fixed;inset-inline-start:16px;bottom:16px;z-index:40;border:0;border-radius:999px;padding:12px 18px;font:inherit;font-weight:700;background:var(--primary);color:var(--primary-ink);box-shadow:var(--shadow);cursor:pointer;min-height:48px}',
     '.lg-launcher.lg-small{padding:8px 14px;min-height:40px;font-size:.88rem;background:var(--surface);color:var(--text);border:1px solid var(--border)}',
+    '.lg-launcher{display:inline-flex;align-items:center;gap:8px;transition:padding .2s ease,gap .2s ease,opacity .2s ease}',
+    '.lg-launcher .lg-label{max-width:220px;overflow:hidden;white-space:nowrap;transition:max-width .25s ease}',
+    '.lg-launcher.lg-folded{padding:12px;gap:0;opacity:.92}.lg-launcher.lg-folded .lg-label{max-width:0}',
+    '.lg-launcher.lg-folded:hover,.lg-launcher.lg-folded:focus-visible{padding:12px 18px;gap:8px;opacity:1}.lg-launcher.lg-folded:hover .lg-label,.lg-launcher.lg-folded:focus-visible .lg-label{max-width:220px}',
+    'body.lg-has-launcher .mp-footer{padding-bottom:84px}',
     '.lg-panel{position:fixed;inset:72px 16px 96px 16px;z-index:35;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}',
     '@media (min-width:900px){.lg-panel{inset-inline-end:420px}}',
     '.lg-panel-head{display:flex;gap:8px;align-items:center;padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface-2)}',

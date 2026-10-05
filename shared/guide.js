@@ -1,7 +1,7 @@
 /* Guided setup: an adaptive question flow that personalises the whole planner.
    The first three answers (knowledge, detail, advice) change how later questions are worded, how many
    are asked, and how every tool behaves. The flow ends with a personal step-by-step plan. */
-MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function () {
+MP.page({ id: 'guide', title: 'Guided setup', noToggle: true, backLabel: '← Home' }).then(function () {
   'use strict';
   var el = MP.el, main = MP.$('#app');
   var prof = MP.profile(), prefs = MP.prefs();
@@ -153,10 +153,10 @@ MP.page({ id: 'guide', title: 'Guided setup', noToggle: true }).then(function ()
     var s = steps[stepIndex];
     main.innerHTML = '';
     var wrap = el('div', { class: 'guide-wrap' });
-    var pct = Math.round(stepIndex / (steps.length - 1) * 100);
+    var pct = s.id === 'mode' ? 0 : Math.round(stepIndex / (steps.length - 1) * 100);
     if (s.type !== 'plan') {
       wrap.appendChild(el('div', { class: 'guide-top' },
-        el('span', { class: 'small muted', id: 'guide-progress-text' }, 'Question ' + (stepIndex + 1) + ' of ' + (steps.length - 1)),
+        el('span', { class: 'small muted', id: 'guide-progress-text' }, s.id === 'mode' ? 'Getting started' : 'Question ' + stepIndex + ' of ' + (steps.length - 2)),
         el('button', { class: 'btn btn-ghost btn-sm', type: 'button', id: 'guide-skip', onclick: skip }, prefs.onboarded ? 'Cancel' : 'Skip for now')));
       wrap.appendChild(el('div', { class: 'progress', role: 'progressbar', 'aria-label': 'Progress', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct }, el('span', { style: { width: pct + '%' } })));
     }
