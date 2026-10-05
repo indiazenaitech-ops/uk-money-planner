@@ -559,10 +559,13 @@
   function footer() {
     var R = window.UK ? UK.R : { taxYear: '' };
     return el('footer', { class: 'mp-footer' }, el('div', { class: 'mp-footer-in' },
-      el('p', null, el('strong', null, 'Guidance, not advice. '), 'These tools help you plan. They are not personal financial advice or a recommendation to buy any product. The value of investments can fall as well as rise and you may get back less than you put in.'),
-      el('p', null, 'Tax figures are for the ' + R.taxYear + ' tax year and depend on your circumstances. For free, impartial help visit ',
-        el('a', { href: 'https://www.moneyhelper.org.uk', target: '_blank', rel: 'noopener' }, 'MoneyHelper'), ' or, if you are 50 or over, book a Pension Wise appointment.'),
-      el('p', null, 'Your data is encrypted and stays on this device. Nothing is sent to ' + (CFG.brand || 'us') + ' or anyone else. ' + (CFG.supportText || ''))));
+      el('p', { class: 'mp-footer-line' }, el('strong', null, 'Guidance, not advice.'), ' Figures for the ' + R.taxYear + ' tax year. Your data stays on this device. ',
+        el('a', { href: 'https://www.moneyhelper.org.uk', target: '_blank', rel: 'noopener' }, 'Free help: MoneyHelper')),
+      el('details', { class: 'mp-footer-more' }, el('summary', null, 'More about this guidance and your data'),
+        el('p', null, 'These tools help you plan. They are not personal financial advice or a recommendation to buy any product. The value of investments can fall as well as rise and you may get back less than you put in.'),
+        el('p', null, 'Tax figures are for the ' + R.taxYear + ' tax year and depend on your circumstances. For free, impartial help visit ',
+          el('a', { href: 'https://www.moneyhelper.org.uk', target: '_blank', rel: 'noopener' }, 'MoneyHelper'), ' or, if you are 50 or over, book a Pension Wise appointment.'),
+        el('p', null, 'Your data is encrypted and stays on this device. Nothing is sent to ' + (CFG.brand || 'us') + ' or anyone else. ' + (CFG.supportText || '')))));
   }
 
   /* MP.page({id, title, icon}) → Promise<vault>. Redirects to sign-in when there is no session. */
@@ -619,12 +622,44 @@
         var f = n.closest('.field');
         if (f) { f.classList.toggle('has-example', ex); f.classList.toggle('has-assumption', as); }
       });
-      count = c; drawBar();
+      count = c; drawBar(); noteResult(); updateJump();
       var sm = MP.get('summaries.' + toolId, null);
       if (sm && (sm.examples || 0) !== c) { sm.examples = c; MP.set('summaries.' + toolId, sm); }
       return c;
     }
     function queue() { if (!queued) { queued = true; requestAnimationFrame(mark); } }
+    /* the headline result: the first visible big number or live result, and the card it sits in */
+    function resultCard() {
+      var c = $$('#results', root).concat($$('.big-number', root), $$('[aria-live]', root)).filter(function (n) {
+        return n.offsetParent !== null && n.textContent.trim() && !n.classList.contains('mp-ex-note');
+      });
+      // prefer a result that is not sitting inside a card of input boxes (those live regions are hints)
+      for (var i = 0; i < c.length; i++) { var card = c[i].closest('.card') || c[i]; if (c[i].id === 'results' || !$('input, select', card)) return card; }
+      return c.length ? (c[0].closest('.card') || c[0]) : null;
+    }
+    // say on the result itself when it still uses sample figures (only touches the DOM when the wording changes)
+    function noteResult() {
+      var card = resultCard(), want = count ? 'This estimate uses ' + count + ' example ' + (count === 1 ? 'figure' : 'figures') + '. Change the boxes marked Example to make it yours.' : '';
+      $$('.mp-ex-note', root).forEach(function (n) { if (!want || n.parentNode !== card) n.remove(); });
+      if (!want || !card) return;
+      var note = $('.mp-ex-note', card);
+      if (!note) { note = el('p', { class: 'mp-ex-note small' }); card.insertBefore(note, card.firstChild); }
+      if (note.textContent !== want) note.textContent = want;
+    }
+    // on small screens the result sits below the form: offer a shortcut while it is out of sight
+    var jumpBtn = el('button', { type: 'button', class: 'mp-to-result no-print', id: 'mp-to-result', hidden: true, onclick: function () {
+      var r = resultCard(); if (r) { r.scrollIntoView({ block: 'start' }); r.setAttribute('tabindex', '-1'); r.focus({ preventScroll: true }); }
+    } }, 'See your result ↓');
+    document.body.appendChild(jumpBtn);
+    function updateJump() {
+      var r = resultCard();
+      if (!r || window.innerWidth > 900) { jumpBtn.hidden = true; document.body.classList.remove('mp-jump-on'); return; }
+      var t = r.getBoundingClientRect().top;
+      jumpBtn.hidden = !(t > window.innerHeight * 0.85);
+      document.body.classList.toggle('mp-jump-on', !jumpBtn.hidden);
+    }
+    window.addEventListener('scroll', updateJump, { passive: true });
+    window.addEventListener('resize', updateJump);
     function own(e) {
       var n = e.target;
       if (clearing || !eligible(n)) return;
